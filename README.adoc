@@ -1,50 +1,55 @@
 = About illumos-zonemgr
 
 This repo holds the script to manage illumos zones lifecycle for essentially
-disposable zones (such as single-use build environments that are clones of a
-golden build env, which has its own update schedule).
+disposable zones that are clones of a golden build env, which has its own
+update schedule.
 
-This work is licensed under the terms of CDDL:
+The initial intended use-case is management of dedicated single-use build
+environments with just enough tools and prerequisites installed for compilation
+of the illumos-gate and userland stacks (including disposable zones with just
+the minimal set of known tools and prerequisites for a single component build).
 
-#
-# This file and its contents are supplied under the terms of the
-# Common Development and Distribution License ("CDDL"). You may
-# only use this file in accordance with the terms of the CDDL.
-#
-# A full copy of the text of the CDDL should have accompanied this
-# source. A copy of the CDDL is also available via the Internet at
-# http://www.illumos.org/license/CDDL.
-#
+----
+This file and its contents are supplied under the terms of the
+Common Development and Distribution License ("CDDL"). You may
+only use this file in accordance with the terms of the CDDL.
 
-#
-# Copyright 2016-2017, Jim Klimov. All rights reserved.
-#
+A full copy of the text of the CDDL should have accompanied this
+source. A copy of the CDDL is also available via the Internet at
+http://www.illumos.org/license/CDDL.
+
+Copyright 2016-2017, Jim Klimov. All rights reserved.
+----
 
 == Terminology
 
-Common definitions
+Common definitions (from the Solarish ecosystem):
 
-* Global zone (GZ) - the "physically installed" illumos-based distro in a
-  barebone or VM computer
-* Local Zone or Non-Global Zone (LZ, NGZ) - a container running in the same
-  kernel as the GZ, providing a virtualized environment (with individual root
-  filesystem, networking stack, process and user-account spaces) orchestrated
-  by the GZ; if there is any resource sharing defined (e.g. access to common
-  filesystems) - it is intentionally done by the setup in the GZ, and/or by
-  general approach to shared resources (usually via net - e.g. NFS, LDAP, etc.)
-* Operating Environment (OE) - a filesystem with contents sufficient to
-  instantiate a fully-fledged usable system (BE, a Boot Environment), such as
-  the GZ or LZ root filesystems, and the actual instance running over such a
-  filesystem.
+* *Boot Environment* (*BE*) -- a filesystem with contents sufficient to
+  instantiate a fully-fledged usable system for a given architecture and
+  environment (e.g. kernel and drivers may be missing in a BE for lightweight
+  virtualization container).
+* *Global zone* (*GZ*) -- the "physically installed" illumos-based distro in
+  a barebone or VM computer, running a kernel and interfacing with hardware.
+* *Local Zone* or *Non-Global Zone* (*LZ* or *NGZ*) -- a container running in
+  the same kernel as the GZ, providing a lightweight virtualized environment
+  (with individual root filesystem, networking stack, process and user-account
+  spaces) orchestrated by the GZ. If there is any resource sharing with other
+  environments (e.g. access to common filesystems) -- then it is intentionally
+  done by the setup in the GZ, and/or by general approach to shared resources
+  (usually via net -- e.g. NFS, LDAP, etc.)
+* *Operating Environment* (*OE*) -- a BE, such as the GZ or LZ root filesystems
+  or an installation/recovery miniroot, and the actual instance of an operating
+  system running over such a filesystem.
 
-Local definitions
+Local definitions (introduced by this project):
 
-* Golden Image (GI) zone - an installation prepared in advance that contains
-  minimal systems setup and a defined set of packages, that is not intended
-  for direct booting - but rather for snapshotting and cloning into applied
+* *Golden Image* (*GI*) zone -- a local zone prepared in advance that contains
+  minimal systems setup and a defined set of packages, and that is not intended
+  for direct booting -- but rather for snapshotting and cloning into applied
   deployments. The workflow below considers golden-image zones created from
   scratch and from snapshots of earlier (more generic) GI zones.
-* Disposable Zone (DZ) - a clone of some particular golden-image zone which
+* *Disposable Zone* (*DZ*) -- a clone of some particular golden-image zone which
   is intended to persist while running some time-limited task (e.g. a build)
   possibly with more specific resources designated to fulfill this job, and
   to be destroyed afterwards.
@@ -55,7 +60,7 @@ All of the below assumes RBAC privileges sufficient to create, manage and
 destroy local zones and datasets (e.g. a "Primary Admin") via `pfexec`.
 
 * Slurp script configs (hardcoded defaults; system, user level and command-line
-  passed config file overrides) - e.g. container root datasets
+  passed config file overrides) -- e.g. container root datasets
 * Zone-creation task stack:
 ** Create the golden-image containment dataset if missing yet
 *** Disable auto-snaps
@@ -65,7 +70,7 @@ destroy local zones and datasets (e.g. a "Primary Admin") via `pfexec`.
 *** Let specify image template type (linked, brand, etc.) to set up the config
 *** Minimal config zone-wise (no resources, filesystem/dataset provisions,
     networking, user accounts...); set autoboot:=false
-*** Let specify package source(s) - URL to IPS repo, possibly just one
+*** Let specify package source(s) -- URL to IPS repo, possibly just one
     publisher may be allowed for initial installation, but more may be added
     after initial "image" setup
 *** Consider packaging, tarballs, zfs-send images...
