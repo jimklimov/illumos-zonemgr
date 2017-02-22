@@ -1,0 +1,583 @@
+#!/usr/bin/bash
+
+# This is a script to manage illumos zones lifecycle for essentially
+# disposable zones (such as single-use build environments that are
+# clones of a golden build env, which has its own update schedule).
+
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"). You may
+# only use this file in accordance with the terms of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source. A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright 2016-2017, Jim Klimov. All rights reserved.
+#
+
+############################################################################
+# General helpers
+############################################################################
+
+if [ -n "${BASH-}" ]; then
+    # A bash-ism, should set the exitcode of the rightmost failed command
+    # in a pipeline, otherwise e.g. exitcode("false | true") == 0
+    set -o pipefail 2>/dev/null || true
+    echo_E() { echo -E "$@"; }
+    echo_e() { echo -e "$@"; }
+else
+    echo_E() { /bin/echo -E "$@"; }
+    echo_e() { /bin/echo -e "$@"; }
+fi
+
+## Store some important CLI values. DO NOT "export" THESE!
+[ -z "${_SCRIPT_STARTPWD-}" ] && _SCRIPT_STARTPWD="`pwd`"
+[ -z "${_SCRIPT_PATH-}" ] && _SCRIPT_PATH="$0"
+[ -z "${_SCRIPT_NAME-}" ] && _SCRIPT_NAME="`basename "${_SCRIPT_PATH}"`"
+_SCRIPT_ARGS="$*"
+_SCRIPT_ARGC="$#"
+
+### Set the default language
+[ -z "${LANG-}" ] && LANG=C
+[ -z "${LANGUAGE-}" ] && LANGUAGE=C
+[ -z "${LC_ALL-}" ] && LC_ALL=C
+[ -z "${TZ-}" ] && TZ=UTC
+export LANG LANGUAGE LC_ALL TZ
+
+### Empty and non-numeric and non-positive values should be filtered out here
+is_positive() {
+    [ -n "$1" -a "$1" -gt 0 ] 2>/dev/null
+}
+default_posval() {
+    eval is_positive "\$$1" || eval "$1"="$2"
+}
+
+### Caller can disable specific debuggers by setting their level too
+### high in its environment variables for a specific script run.
+### Scripts can use this mechanism to set flexible required-verbosity
+### levels for their messages.
+ZONEMGR_DEBUGLEVEL_NOOP="-1"
+# logmsg_echo() adds no prefix and prints the message if ZONEMGR_DEBUG>=$1
+# (or ZONEMGR_DEBUGLEVEL_ECHO if $1 is not a number)
+default_posval ZONEMGR_DEBUGLEVEL_ECHO       0
+
+# Standard stuff
+default_posval ZONEMGR_DEBUGLEVEL_ERROR      1
+default_posval ZONEMGR_DEBUGLEVEL_WARN       2
+default_posval ZONEMGR_DEBUGLEVEL_INFO       3
+default_posval ZONEMGR_DEBUGLEVEL_TRACE      4
+default_posval ZONEMGR_DEBUGLEVEL_DEBUG      5
+
+# Custom stuff for specific routines
+default_posval ZONEMGR_DEBUGLEVEL_RUN        $ZONEMGR_DEBUGLEVEL_TRACE
+default_posval ZONEMGR_DEBUGLEVEL_PIPESNIFFER $ZONEMGR_DEBUGLEVEL_DEBUG
+
+# Semihack used below to enable "set -x" by very large debug level
+default_posval ZONEMGR_DEBUGLEVEL_TRACEEXEC  200
+default_posval ZONEMGR_DEBUGLEVEL_TIME_RUN 99
+
+### Default debugging/info/warning level for this lifetime of the script
+### Messages are printed if their assigned level is at least ZONEMGR_DEBUG
+### The default of "3" allows INFO messages to be printed or easily
+### suppressed by change to a smaller number. The level of "2" is default
+### for warnings and "1" for errors, and a "0" would likely hide most
+### such output. "Yes" bumps up a high level to enable even greater debug
+### details, while "No" only leaves the default errors and warnings.
+case "${ZONEMGR_DEBUG-}" in
+    ""|"-")
+        ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_INFO"
+        ;;
+    [Yy]|[Yy][Ee][Ss]|[Oo][Nn]|[Tt][Rr][Uu][Ee])     ZONEMGR_DEBUG=99 ;;
+    [Nn]|[Nn][Oo]|[Oo][Ff][Ff]|[Ff][Aa][Ll][Ss][Ee]) ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_WARN" ;;
+esac
+[ "$ZONEMGR_DEBUG" -ge -1 ] 2>/dev/null || ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_INFO"
+[ "$ZONEMGR_DEBUG" -ge -1 ] 2>/dev/null || ZONEMGR_DEBUG=3
+
+### This is prefixed before ERROR, WARN, INFO tags in the logged messages
+[ -z "$LOGMSG_PREFIX" ] && LOGMSG_PREFIX="ZONEMGR-"
+
+logmsg_echo() {
+    ### Optionally echoes a message, based on current debug-level
+    ### Does not add any headers to the output line
+        # By default, do echo unless $1 says otherwise
+
+    WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_ECHO
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        WANT_DEBUG_LEVEL="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$ZONEMGR_DEBUG" -ge "$WANT_DEBUG_LEVEL" ] 2>/dev/null && \
+    echo_E "$@"
+    :
+}
+
+logmsg_info() {
+    WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_INFO
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        WANT_DEBUG_LEVEL="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$ZONEMGR_DEBUG" -ge "$WANT_DEBUG_LEVEL" ] 2>/dev/null && \
+    echo_E "${LOGMSG_PREFIX}INFO: ${_SCRIPT_PATH}:" "$@"
+    :
+}
+
+logmsg_warn() {
+    WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_WARN
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        WANT_DEBUG_LEVEL="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$ZONEMGR_DEBUG" -ge "$WANT_DEBUG_LEVEL" ] 2>/dev/null && \
+    echo_E "${LOGMSG_PREFIX}WARN: ${_SCRIPT_PATH}:" "$@" >&2
+    :
+}
+
+logmsg_error() {
+    WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_ERROR
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        WANT_DEBUG_LEVEL="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$ZONEMGR_DEBUG" -ge "$WANT_DEBUG_LEVEL" ] 2>/dev/null && \
+    echo_E "${LOGMSG_PREFIX}ERROR: ${_SCRIPT_PATH}:" "$@" >&2
+    :
+}
+
+logmsg_trace() {
+    WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_TRACE
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        WANT_DEBUG_LEVEL="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$ZONEMGR_DEBUG" -ge "$WANT_DEBUG_LEVEL" ] 2>/dev/null && \
+    echo_E "${LOGMSG_PREFIX}TRACE: ${_SCRIPT_PATH}:" "$@" >&2
+    :
+}
+
+logmsg_run() {
+    WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_RUN
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        WANT_DEBUG_LEVEL="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$ZONEMGR_DEBUG" -ge "$WANT_DEBUG_LEVEL" ] 2>/dev/null && \
+    echo_E "${LOGMSG_PREFIX}TRACE-RUN: ${_SCRIPT_PATH}:" "$@" >&2
+    :
+}
+
+logmsg_debug() {
+    # A script can flexibly define its different debug messages via variables
+    # with debug-levels assigned (and easily changeable) to different subjects
+    WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_DEBUG
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        WANT_DEBUG_LEVEL="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+
+    [ "$ZONEMGR_DEBUG" -ge "$WANT_DEBUG_LEVEL" ] 2>/dev/null && \
+        for LINE in "$@"; do
+            echo_E "${LOGMSG_PREFIX}DEBUG[$WANT_DEBUG_LEVEL<=$ZONEMGR_DEBUG]: $LINE"
+        done >&2
+    :
+}
+
+tee_stderr() {
+    ### This routine allows to optionally "sniff" piped streams, e.g.
+    ###   prog1 | tee_stderr LISTING_TOKENS $DEBUGLEVEL_PRINTTOKENS | prog2
+    TEE_TAG="PIPESNIFF:"
+    [ -n "$1" ] && TEE_TAG="$1:"
+    [ -n "$2" -a "$2" -ge 0 ] 2>/dev/null && \
+        TEE_DEBUG="$2" || \
+        TEE_DEBUG=$ZONEMGR_DEBUGLEVEL_PIPESNIFFER
+
+    ### If debug is not enabled, skip tee'ing quickly with little impact
+    [ "$ZONEMGR_DEBUG" -lt "$TEE_DEBUG" ] 2>/dev/null && cat || \
+    while IFS= read -r LINE; do
+        echo_E "$LINE"
+        echo_E "${LOGMSG_PREFIX}$TEE_TAG" "$LINE" >&2
+    done
+    :
+}
+
+# This value can be set, at least in bash, to specify at which location
+# the caller of DIE was in the scripts
+SCRIPTLIB_DIE_FILENAME=""       # Which (maybe included) file caused the failure
+SCRIPTLIB_DIE_FUNCNAME=""       # Which function failed, maybe main(), source() etc
+SCRIPTLIB_DIE_LINENO=0          # Which line in the file (or function) failed?
+SCRIPTLIB_DIE_SUBSHELL=-1       # Depth of automatic subshelling "()" "``" "$()"...
+# These are inherited from caller in any shell:
+SCRIPTLIB_DIE_SCRIPT_PATH=""
+SCRIPTLIB_DIE_SCRIPT_NAME=""
+SCRIPTLIB_DIE_SCRIPT_ARGS=""
+SCRIPTLIB_DIE_SCRIPT_ARGC=-1
+# This value is also a flag to decide if the SCRIPTLIB_DIE_* vars are to
+# be consulted in the settraps() handler below rather than autodetection
+# at the moment of trap execution (which may be already limited by shell).
+SCRIPTLIB_DIE_ERRCODE=-1
+die() {
+    # The exit CODE can be passed as a variable, or as the first parameter
+    # (if it is a number), both ways can be used for legacy reasons
+    CODE="${CODE-1}"
+    if [ "$1" -ge 0 ] 2>/dev/null; then
+        CODE="$1"
+        shift
+    else if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$CODE" -ge 0 ] 2>/dev/null || CODE=1
+    for LINE in "$@" ; do
+        echo_E "${LOGMSG_PREFIX-}FATAL: ${_SCRIPT_PATH-}:" "$LINE" >&2
+    done
+    # Set common vars for settraps() standard handler
+    SCRIPTLIB_DIE_ERRCODE="${CODE}"
+    SCRIPTLIB_DIE_SCRIPT_PATH="${_SCRIPT_PATH-}"
+    SCRIPTLIB_DIE_SCRIPT_NAME="${_SCRIPT_NAME-}"
+    SCRIPTLIB_DIE_SCRIPT_ARGS="${_SCRIPT_ARGS-}"
+    SCRIPTLIB_DIE_SCRIPT_ARGC="${_SCRIPT_ARGC-}"
+    if [ -n "${BASH}" ]; then
+        # Detect who called die()
+        SCRIPTLIB_DIE_LINENO="${BASH_LINENO[0]-}"
+        SCRIPTLIB_DIE_FUNCNAME="${FUNCNAME[1]-}"
+        SCRIPTLIB_DIE_FILENAME="${BASH_SOURCE[1]}"
+        SCRIPTLIB_DIE_SUBSHELL="${BASH_SUBSHELL}"
+    else
+        # Definitions of LINENO vary greatly from shell to shell
+        # In practice must be >= 1 if defined at all
+        SCRIPTLIB_DIE_LINENO="${LINENO-}"
+        [ "$SCRIPTLIB_DIE_LINENO" -ge 1 ] 2>/dev/null || SCRIPTLIB_DIE_LINENO=0
+        SCRIPTLIB_DIE_FILENAME="${SCRIPTLIB_DIE_SCRIPT_NAME}"
+        SCRIPTLIB_DIE_FUNCNAME=""
+        SCRIPTLIB_DIE_SUBSHELL=-1
+    fi
+    exit $CODE
+}
+
+settraps_exit_clear() {
+    # Reset the exit() handler to defaults, used in routines below
+    for SS in EXIT SIGEXIT 0 ERR SIGERR; do trap "-" "$SS" 2>/dev/null || true; done
+    set +E      # unset -o errtrace
+}
+
+settraps_nonfatal() {
+    # While the legacy common settraps() wraps the caller's custom handler "$*"
+    # with an exit(), this one is not fatal by itself, and it does not subshell
+    # as it is intended to be used for interrupts, etc. And for settraps() too.
+    # It detects and presets the variables that can be used by the caller's
+    # trap handler, including one from settraps() below. Variables include:
+    #   ERRCODE     Number of upstream exitcode that came into the trap
+    #   ERRSIGNAL   Name of the signal as registered (HUP or SIGEXIT etc.)
+    #   ERRFILE     File from which the trap was called, if we can guess it
+    #   ERRFUNC     Function inside which failure, exit() or die() happened
+    #   ERRLINE     Line in source file or function, if any (else empty)
+    #   ERRPOS      String that combines available bits of _SCRIPT_NAME
+    #               ERRFILE ERRFUNC ERRLINE into meaningful markup
+    #   ERRTEXT     String that meaningfully combines ERRPOS ERRCODE ERRSIGNAL
+    # The handler built into this routine does not report anything, it just
+    # sets the variables above and calls the caller's handle - such as the
+    # settrap() which reports stuff and exit()s with some code in the end.
+
+    # Not all trap names are recognized by all shells consistently
+    [ -z "${TRAP_SIGNALS-}" ] && TRAP_SIGNALS="EXIT QUIT TERM HUP INT ERR"
+    for P in "" SIG; do for S in $TRAP_SIGNALS ; do
+        if [ -n "$BASH" ] && [ "$S" = ERR ] ; then
+            # If "set -e" aka "set -o errexit" would be used, inherit the trap
+            set -o errtrace
+        fi
+        case "$1" in
+            -|"") trap "$1" "$P$S" 2>/dev/null || true ;;
+            *)    ERRHANDLER="$*"
+                  case "$ERRHANDLER" in
+                    *";"|*"; "|*";  ") ;;
+                    *)    ERRHANDLER="$ERRHANDLER ;" ;;
+                  esac
+                  trap 'ERRCODE=$?; ERRSIGNAL="'"$P$S"'"; \
+[ -z "${ERRIGNORE-}" ] && ERRIGNORE=no
+if [ "${ERRSIGNAL-}" = "ERR" ] || [ "${ERRSIGNAL-}" = "SIGERR" ]; then
+    set -o | egrep -i "^errexit.*off$" >/dev/null && ERRIGNORE=yes
+fi
+if [ "${ERRIGNORE-}" = no ]; then
+  if [ -n "${SCRIPTLIB_DIE_ERRCODE-}" ] && [ "${SCRIPTLIB_DIE_ERRCODE-}" -ge 0 ] 2>/dev/null; then
+    ERRFILE="$SCRIPTLIB_DIE_FILENAME"
+    ERRFUNC="$SCRIPTLIB_DIE_FUNCNAME"
+    ERRLINE="$SCRIPTLIB_DIE_LINENO"
+    ERRCODE="$SCRIPTLIB_DIE_ERRCODE"
+  else
+    SCRIPTLIB_DIE_ERRCODE=""
+    [ -n "${LINENO-}" ] && [ "${LINENO-}" -gt 0 ] 2>/dev/null && ERRLINE="${LINENO-}" || ERRLINE=""
+    ERRFILE="${_SCRIPT_NAME-}"; ERRFUNC=""
+    if [ -n "${BASH-}" ] 2>/dev/null; then
+        [ -n "${FUNCNAME-}" -o -n "${FUNCNAME[0]-}" ] && ERRFUNC="${FUNCNAME[0]-}" || ERRFUNC=""
+        ERRLINE="${BASH_LINENO[0]-}" && [ -n "$ERRLINE" ] || ERRLINE=0
+        [ "$ERRLINE" -eq 0 ] && ERRLINE="${LINENO-}"
+        [ -n "$ERRLINE" ] && [ "$ERRLINE" -gt 1 ] || ERRLINE=""
+        ERRFILE="${BASH_SOURCE[0]-}"
+    fi
+  fi
+  ERRPOS="${ERRFILE-}${ERRLINE:+:$ERRLINE}${ERRFUNC:+ :: $ERRFUNC()}"
+  [ "`basename "${_SCRIPT_NAME-}"`" = "`basename "${ERRFILE-}"`" ] || ERRPOS="${_SCRIPT_NAME-} => ${ERRPOS-}"
+  ERRTEXT="script (${ERRPOS-}) due to trapped signal (${ERRSIGNAL-}) with exit-code (${ERRCODE-})"
+  [ -n "${SCRIPTLIB_DIE_ERRCODE-}" ] && ERRTEXT="${ERRTEXT-}, using die()"
+  { (settraps_exit_clear; exit ${ERRCODE-} 2>/dev/null 2>&1); '"$ERRHANDLER"' } ;
+else ERRIGNORE=""; fi ;' \
+                    "$P$S" 2>/dev/null || true
+                  ;;
+        esac
+    done; done
+}
+
+# These variables are tested for equality to "yes" when the trap is processed.
+#   When a trap is handled by settraps(), should any message be printed?
+[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE-}" ] && [ x"${SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE-}" != "x-" ] || \
+    if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_ERROR" ]; then
+        SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE="yes"
+    else
+        SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE="yes"
+    fi
+#   If SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE==yes and cause is exit(0), still print?
+[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" ] && [ x"${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" != "x-" ] || \
+    if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_DEBUG" ]; then
+        SCRIPTLIB_TRAPWRAP_PRINT_EXIT0="yes"
+    else
+        SCRIPTLIB_TRAPWRAP_PRINT_EXIT0="no"
+    fi
+#   If SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE==yes and we have a shell with func-call
+#   history like bash, print also a stack trace of the failure?
+[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" ] && [ x"${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" != "x-" ] || \
+    if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_DEBUG" ]; then
+        SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE="yes"
+    else
+        SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE="no"
+    fi
+
+settraps() {
+    # Sets up or clear traps defined in $TRAP_SIGNALS (or falls back to default
+    # list of signals) to report the trap, call consumer's handler, and if that
+    # routine does not exit() the shell by itself - the wrapper would exit with
+    # either that handler's non-zero return code or with original trapped code.
+    # The ERR* variables reported here are defined by settraps_nonfatal() above
+    # Note that all output (if any) goes to stderr (see end of "if" clause).
+    case "$1" in
+        -|"") settraps_nonfatal "$1" || true ;;
+        *)    ERRHANDLER="$*"
+              case "$ERRHANDLER" in
+                *";"|*"; "|*";  ") ;;
+                *)    ERRHANDLER="$ERRHANDLER ;" ;;
+              esac
+              settraps_nonfatal 'if [ "${SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE-}" = yes ]\
+; then
+    echo ""
+    _DO_PRINT_STACKTRACE=no
+    if [ "${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" = yes ] && [ -n "${BASH-}" ]; then
+        _DO_PRINT_STACKTRACE=yes
+    fi
+    if [ "${ERRCODE-}" = 0 ]; then
+        _DO_PRINT_STACKTRACE=no
+        if [ "${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" = yes ] || \
+            [ "${ERRSIGNAL-}" != 0 -a "${ERRSIGNAL-}" != EXIT -a "${ERRSIGNAL-}" != SIGEXIT ] \
+        ; then
+            LOGMSG_PREFIX="ZONEMGR-SIGNALTRAP-" logmsg_info "Completing ${ERRTEXT-}"
+            _DO_PRINT_STACKTRACE=yes
+        fi
+    else
+        echo ""; echo "!!!!!!!!!"
+        LOGMSG_PREFIX="ZONEMGR-SIGNALTRAP-" logmsg_error "Aborting ${ERRTEXT-}"
+        echo "!!!!!!!!!"
+    fi
+    echo ""
+    if [ "${_DO_PRINT_STACKTRACE-}" = yes ]; then
+        echo "======= Stack trace and other clues of the end-of-work (code=${ERRCODE-}, sig=${ERRSIGNAL-}):"
+        echo "  Depth of sub-shelling (BASH_SUBSHELL) = ${BASH_SUBSHELL-}"
+        if [ -z "${FUNCNAME-}" ] || [ -z "${FUNCNAME[0]}" ]; then
+            FUNCDEPTH=-1
+        else
+            FUNCDEPTH="${#FUNCNAME[@]-}" 2>/dev/null && [ -n "$FUNCDEPTH" ] && [ "$FUNCDEPTH" -ge 0 ] || FUNCDEPTH=-1
+        fi
+        printf "  Depth of function call stack = $FUNCDEPTH : "
+        if [ "$FUNCDEPTH" -gt 0 ] 2>/dev/null; then
+            printf "::%s" ${FUNCNAME[@]-}
+        else
+            printf "finished in main body of main script"
+        fi
+        printf "\n"
+        i=0
+        while [ "$i" -lt "$FUNCDEPTH" ] ; do
+            echo "  ($i)        -> in ${FUNCNAME[$i]-}() called at ${BASH_SOURCE[$i+1]-}:${BASH_LINENO[$i]-}"
+            i=$(($i+1))
+        done
+        echo "  ~> in ${ERRFUNC:-main-script-body}() at ${ERRFILE-}:${ERRLINE-}"
+        echo "======= End of stack trace, ${_SCRIPT_NAME-}:${LINENO-}"
+        echo ""
+    fi
+fi >&2
+settraps_exit_clear
+{ '"$ERRHANDLER"' } || exit $?
+exit ${ERRCODE-};' \
+                || true
+              ;;
+    esac
+}
+
+exit_cleanup() {
+    :
+}
+
+TBD() {
+    if [ -n "${FUNCNAME[1]}" ]; then
+        logmsg_error "Routine ${FUNCNAME[1]}() is not implemented yet"
+    else
+        ( die "This routine is not implemented yet" )
+    fi
+    false
+}
+
+############################################################################
+# Slurp script configs (hardcoded defaults; system, user level and
+# CLI-passed config file overrides) - e.g. container root datasets
+############################################################################
+
+usage() {
+    echo "Usage: ${_SCRIPT_NAME}"
+}
+
+# Golden images
+DATASET_CONTAINMENT_GI="rpool/zones/_zonemgr-GI"
+# Disposable zones
+DATASET_CONTAINMENT_DZ="rpool/zones/_zonemgr-DZ"
+parse_config() {
+    # Args: pass "$@" of the script
+    for F in "/etc/zones/zonemgr.conf" "${HOME}/.zonemgr.conf" ; do
+        if [ -s "$F" ] ; then
+            logmsg_info "Reading config file: $F"
+            . "$F" || true
+        fi
+    done
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -h|-help|--help) usage ; exit 0 ;;
+            *) logmsg_error "Unknown CLI argument: $1" ; exit 1 ;;
+        esac
+        shift
+    done
+}
+
+############################################################################
+# Zone-creation task stack:
+############################################################################
+
+create_dataset_containment_GI() {
+    # Create the golden-image containment dataset if missing yet
+    # * Disable auto-snaps
+    # * Enable strong compression
+    # * Enable dedup?
+    TBD
+}
+
+############################################################################
+# Create the golden-image zone from scratch, if the name is not yet occupied:
+############################################################################
+
+# Let specify image template type (linked, brand, etc.) to set up the config
+
+# Minimal config zone-wise (no resources, filesystem/dataset provisions,
+# networking, user accounts...); set autoboot:=false
+
+# Let specify package source(s) - URL to IPS repo, possibly just one
+# publisher may be allowed for initial installation, but more may be added
+# after initial "image" setup
+
+# Consider packaging, tarballs, zfs-send images...
+
+############################################################################
+# Create a golden-image zone from existing golden-image zone (clone current
+# state, last or specified snapshot):
+############################################################################
+
+# Add metadata (zonecfg field?) to track which GI this image was built from
+
+# Specify package(s) to remove from the zone compared to original while
+# creating it (e.g. to avoid conflicts for subsequently added packages)
+
+# Specify package(s) to add into the zone compared to original while creating
+
+# Same limitations (e.g. simplicity) as above
+
+############################################################################
+# Create the disposable-zone containment dataset if missing yet:
+# * Disable auto-snaps
+# * Enable moderate or no compression
+# * Disable dedup
+############################################################################
+
+############################################################################
+# Create a disposable zone from specified golden-image zone (clone current
+# state, last or specified snapshot):
+############################################################################
+
+# Add resource definitions (datasets/lofs, network, user accounts/ldap, ...)
+
+# Script cloning of file-based user/shadow and group account data from GZ
+# to LZ for respective specified accounts
+clone_group() {
+    TBD
+}
+
+clone_user() {
+    TBD
+}
+
+############################################################################
+# General maintenance actions:
+############################################################################
+
+# Iterate all golden-image zones to upgrade them (e.g. from crontab)
+
+############################################################################
+# General actions against any managed zones (GI or DZ):
+############################################################################
+
+# Generate a unique name-part for the zone (hash of concat of sorted requested
+# pkg names?) that may get prefixed and/or suffixed for GI and DZ instances
+
+# Snapshot a zone
+
+# Clone a zone (clone current state, last or specified snapshot)
+
+# pkg-update contents of a (golden-image?) zone, snapshot after success
+
+# Install specified package(s) into the named zone, snapshot after success
+
+# Start, stop a zone
+
+# Destroy a zone (including config)
+
+# Halt and roll back to specified snapshot (e.g. reuse same)
+
+# Run a command inside the zone (via zlogin), maybe as a specified account
+
+############################################################################
+# Do the run-time work
+############################################################################
+
+# Allow to togle shell-tracing in ZONEMGR-driven builds more easily
+if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_TRACEEXEC" ] ; then
+    logmsg_info "ZONEMGR_DEBUG is $ZONEMGR_DEBUG >= $ZONEMGR_DEBUGLEVEL_TRACEEXEC : enabling source-code tracing!" >&2
+    set -x
+fi
+
+settraps "exit_cleanup"
+
+parse_config "$@"
+
+create_dataset_containment_GI
+:
