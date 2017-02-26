@@ -1,8 +1,8 @@
 = About illumos-zonemgr
 
 This repo holds the script to manage illumos zones lifecycle for essentially
-disposable zones that are clones of a golden build env, which has its own
-update schedule.
+disposable zones that are clones of a "golden" template environment, which
+has its own update schedule, if intended.
 
 The initial intended use-case is management of dedicated single-use build
 environments with just enough tools and prerequisites installed for compilation
@@ -44,15 +44,16 @@ Common definitions (from the Solarish ecosystem):
 
 Local definitions (introduced by this project):
 
-* *Golden Image* (*GI*) zone -- a local zone prepared in advance that contains
+* *Golden Image zone* (*GIZ*) -- a local zone prepared in advance that contains
   minimal systems setup and a defined set of packages, and that is not intended
   for direct booting -- but rather for snapshotting and cloning into applied
-  deployments. The workflow below considers golden-image zones created from
+  deployments. The BE filesystem  for such zones is reasonably called a *Golden
+  Image* (*GI*). The workflow below considers golden-image zones created from
   scratch and from snapshots of earlier (more generic) GI zones.
-* *Disposable Zone* (*DZ*) -- a clone of some particular golden-image zone which
-  is intended to persist while running some time-limited task (e.g. a build)
-  possibly with more specific resources designated to fulfill this job, and
-  to be destroyed afterwards.
+* *Disposable-image Zone* (*DIZ*) -- a clone of some particular golden-image
+  zone which is intended to persist while running some time- and scope-limited
+  task (e.g. a build) possibly with more specific resources designated to help
+  fulfill this job, and which is to be destroyed afterwards.
 
 == Expected workflow
 
