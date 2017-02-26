@@ -29,8 +29,9 @@ Common definitions (from the Solarish ecosystem):
   instantiate a fully-fledged usable system for a given architecture and
   environment (e.g. kernel and drivers may be missing in a BE for lightweight
   virtualization container).
-* *Global zone* (*GZ*) -- the "physically installed" illumos-based distro in
+* *Global Zone* (*GZ*) -- the "physically installed" illumos-based distro in
   a barebone or VM computer, running a kernel and interfacing with hardware.
+  It arranges the resource delegation and separation needed to run local zones.
 * *Local Zone* or *Non-Global Zone* (*LZ* or *NGZ*) -- a container running in
   the same kernel as the GZ, providing a lightweight virtualized environment
   (with individual root filesystem, networking stack, process and user-account
@@ -38,27 +39,35 @@ Common definitions (from the Solarish ecosystem):
   environments (e.g. access to common filesystems) -- then it is intentionally
   done by the setup in the GZ, and/or by general approach to shared resources
   (usually via net -- e.g. NFS, LDAP, etc.)
+* *Zone Brands* -- some virtualized environments want to seem different from
+  the hosting GZ. This may be a nuance like packaging with arbitrary versions
+  of the software, rather than keeping in sync with versions in the GZ, but
+  still running in the same kernel; or there can be considerable differences
+  like syscalls for emulation of a different kernel (e.g. older Solaris release
+  zones, or Linux zones). Implementation of brands may be a mix of scripts for
+  system management methods and some binary code for kernel/syscall emulation.
 * *Operating Environment* (*OE*) -- a BE, such as the GZ or LZ root filesystems
   or an installation/recovery miniroot, and the actual instance of an operating
   system running over such a filesystem.
 
 Local definitions (introduced by this project):
 
-* *Golden Image zone* (*GIZ*) -- a local zone prepared in advance that contains
+* *Golden Image Zone* (*GIZ*) -- a local zone prepared in advance that contains
   minimal systems setup and a defined set of packages, and that is not intended
   for direct booting -- but rather for snapshotting and cloning into applied
   deployments. The BE filesystem  for such zones is reasonably called a *Golden
   Image* (*GI*). The workflow below considers golden-image zones created from
   scratch and from snapshots of earlier (more generic) GI zones.
-* *Disposable-image Zone* (*DIZ*) -- a clone of some particular golden-image
+* *Disposable-Image Zone* (*DIZ*) -- a clone of some particular golden-image
   zone which is intended to persist while running some time- and scope-limited
   task (e.g. a build) possibly with more specific resources designated to help
   fulfill this job, and which is to be destroyed afterwards.
 
 == Expected workflow
 
-All of the below assumes RBAC privileges sufficient to create, manage and
-destroy local zones and datasets (e.g. a "Primary Admin") via `pfexec`.
+All of the below assumes working from an account with RBAC privileges sufficient
+to create, manage and destroy local zones and datasets (e.g. a `Primary Admin`
+role) via `pfexec`, and doing so from a Global zone.
 
 * Slurp script configs (hardcoded defaults; system, user level and command-line
   passed config file overrides) -- e.g. container root datasets
@@ -91,6 +100,7 @@ destroy local zones and datasets (e.g. a "Primary Admin") via `pfexec`.
 *** Add resource definitions (datasets/lofs, network, user accounts/ldap, ...)
 *** Script cloning of file-based user/shadow and group account data from GZ
     to LZ for respective specified accounts
+*** Manage VNICs?
 * General maintenance actions:
 ** iterate all golden-image zones to upgrade them (e.g. from crontab)
 * General actions against any managed zones (GI or DZ):
