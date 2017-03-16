@@ -539,6 +539,13 @@ OUTFILE=""
 DATASET_CONTAINMENT_GIZ="rpool/zones/_zonemgr-GIZ"
 # Disposable zones live under this dataset
 DATASET_CONTAINMENT_DIZ="rpool/zones/_zonemgr-DIZ"
+# Mountpoints for the above. If populated before creation, causes script to
+# set the "mountpoint" option of the dataset. If empty, the default is used.
+# After passing the routines to ensure presence of the datasets, the _MPT
+# values are reinitialized to actual value of respective mountpoint attr.
+DATASET_CONTAINMENT_GIZ_MPT=""
+DATASET_CONTAINMENT_DIZ_MPT=""
+
 # Flip this to "yes" in a config to use "zfs create -p"
 CAN_ZFS_CREATE_RECURSIVE=no
 # Flip this to "on" in a config to dedup under the GIZ container
@@ -574,88 +581,80 @@ AUTO_VNICS=""
 ACTION=""
 ZONECFG_SCRIPT=""
 
-parse_config() {
-    # Args: pass "$@" of the script
-    for F in "/etc/zones/zonemgr.conf" "${HOME}/.zonemgr.conf" ; do
-        if [ -s "$F" ] ; then
-            logmsg_info "Reading config file: $F"
-            . "$F" || true
-        fi
-    done
+parse_config_file() {
+    ### Note: the config should end with a "true" evaluation, e.g. a ":" line
+    logmsg_info "Reading config file: $1"
+    [ -f "$1" ] && . "$1" || return $?
+}
 
-    DO_PRINT_CONFIG=0
+parse_config_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
             -h|-help|--help) usage ; exit 0 ;;
             --config)
-	        logmsg_info "Reading config file: $2"
-                [ -f "$2" ] && . "$2" || exit $?
-		shift
-		;;
-	    --print-config) DO_PRINT_CONFIG=1 ;;
-	    -d|--debug) ZONEMGR_DEBUGLEVEL_INFO="$2"; shift ;;
-	    -O|--outfile) OUTFILE="$2"; shift ;;
-	    -n|--dryrun|--dry-run) ELEVATE_CMD="echo $ELEVATE_CMD" ;;
-	    -t|--template) TEMPLATE_GIZ="$2"; shift ;;
-	    -b|--brand) BRAND_GIZ="$2"; shift ;;
-	    -c|--clone|--origin) ORIGIN_GIZ="$2"; shift; [ -n "$ACTION" ] || ACTION="create" ;;
-	    -z|--zone) TARGET_ZONE="$2"; shift ;;
-	    -Z|--zone-autoname) TARGET_ZONE='{auto}' ;;
-	    -p|--add-packages|--install-packages|--add-package|--install-package)
-		ADD_PACKAGE_FMRIS="$ADD_PACKAGE_FMRIS $2"; shift ;;
-	    -P|--remove-packages|--del-packages|--uninstall-packages||--remove-package|--del-package|--uninstall-package)
-		DEL_PACKAGE_FMRIS="$DEL_PACKAGE_FMRIS $2"; shift ;;
-	    -g|--add-publisher|--add-publishers)
-		ADD_PUBLISHERS="$ADD_PUBLISHERS $2"; shift ;;
-	    -G|--remove-publisher|--del-publisher|--remove-publishers|--del-publishers)
-		DEL_PUBLISHERS="$DEL_PUBLISHERS $2"; shift ;;
-	    --mount-lofs)
-		ADD_MOUNT_LOFS="$ADD_MOUNT_LOFS $2"; shift ;;
-	    --mount-autonfs)
-		ADD_MOUNT_AUTONFS="$ADD_MOUNT_AUTONFS $2"; shift ;;
-	    --copy-users|--copy-user)
-		COPY_USERS="$COPY_USERS $2"; shift ;;
-	    --copy-groups|--copy-group)
-		COPY_GROUPS="$COPY_GROUPS $2"; shift ;;
-	    --add-vnic|--use-vnic|--add-vnics|--use-vnics)
-		USE_VNICS="$USE_VNICS $2"; shift ;;
-	    --add-vnic-over|--use-vnic-over|--add-vnics-over|--use-vnics-over|--auto-vnic|--auto-vnics)
-		AUTO_VNICS="$AUTO_VNICS $2"; shift ;;
-	    --exec-cmd) EXEC_CMD="$1" ;;
-	    --exec-user) EXEC_USER="$1" ;;
-	    --exec-discard)
-		case "$2" in
-		    off|always|onsuccess) EXEC_DISCARD="$2"; shift ;;
-		    *) logmsg_error "Unknown CLI argument: $1 $2" ; exit 1 ;;
-		esac
-		;;
-	    create-giz|create-diz|list|list-giz|list-diz|destroy|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
-	    exec-diz|run-diz) ACTION="exec-diz"
-		[ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="always"
-		[ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
-		;;
-	    start|boot) ACTION="boot" ;;
-	    stop|halt|poweroff) ACTION="halt" ;;
-	    restart|reboot|reset) ACTION="reboot" ;;
+                parse_config_file || exit $?
+                shift
+                ;;
+            --print-config) DO_PRINT_CONFIG=1 ;;
+            -d|--debug) ZONEMGR_DEBUGLEVEL_INFO="$2"; shift ;;
+            -O|--outfile) OUTFILE="$2"; shift ;;
+            -n|--dryrun|--dry-run) ELEVATE_CMD="echo $ELEVATE_CMD" ;;
+            -t|--template) TEMPLATE_GIZ="$2"; shift ;;
+            -b|--brand) BRAND_GIZ="$2"; shift ;;
+            -c|--clone|--origin) ORIGIN_GIZ="$2"; shift; [ -n "$ACTION" ] || ACTION="create" ;;
+            -z|--zone) TARGET_ZONE="$2"; shift ;;
+            -Z|--zone-autoname) TARGET_ZONE='{auto}' ;;
+            -p|--add-packages|--install-packages|--add-package|--install-package)
+                ADD_PACKAGE_FMRIS="$ADD_PACKAGE_FMRIS $2"; shift ;;
+            -P|--remove-packages|--del-packages|--uninstall-packages|--remove-package|--del-package|--uninstall-package)
+                DEL_PACKAGE_FMRIS="$DEL_PACKAGE_FMRIS $2"; shift ;;
+            -g|--add-publisher|--add-publishers)
+                ADD_PUBLISHERS="$ADD_PUBLISHERS $2"; shift ;;
+            -G|--remove-publisher|--del-publisher|--remove-publishers|--del-publishers)
+                DEL_PUBLISHERS="$DEL_PUBLISHERS $2"; shift ;;
+            --mount-lofs)
+                ADD_MOUNT_LOFS="$ADD_MOUNT_LOFS $2"; shift ;;
+            --mount-autonfs)
+                ADD_MOUNT_AUTONFS="$ADD_MOUNT_AUTONFS $2"; shift ;;
+            --copy-users|--copy-user)
+                COPY_USERS="$COPY_USERS $2"; shift ;;
+            --copy-groups|--copy-group)
+                COPY_GROUPS="$COPY_GROUPS $2"; shift ;;
+            --add-vnic|--use-vnic|--add-vnics|--use-vnics)
+                USE_VNICS="$USE_VNICS $2"; shift ;;
+            --add-vnic-over|--use-vnic-over|--add-vnics-over|--use-vnics-over|--auto-vnic|--auto-vnics)
+                AUTO_VNICS="$AUTO_VNICS $2"; shift ;;
+            --exec-cmd) EXEC_CMD="$1" ;;
+            --exec-user) EXEC_USER="$1" ;;
+            --exec-discard)
+                case "$2" in
+                    off|always|onsuccess) EXEC_DISCARD="$2"; shift ;;
+                    *) logmsg_error "Unknown CLI argument: $1 $2" ; exit 1 ;;
+                esac
+                ;;
+            create-giz|create-diz|list|list-giz|list-diz|destroy|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
+            exec-diz|run-diz) ACTION="exec-diz"
+                [ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="always"
+                [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
+                ;;
+            start|boot) ACTION="boot" ;;
+            stop|halt|poweroff) ACTION="halt" ;;
+            restart|reboot|reset) ACTION="reboot" ;;
             *) logmsg_error "Unknown CLI argument: $1" ; exit 1 ;;
         esac
         shift
     done
     [ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="off"
-
-    if [ "$DO_PRINT_CONFIG" = 1 ] || [ "$ZONEMGR_DEBUGLEVEL" -gt "$ZONEMGR_DEBUGLEVEL_INFO" ]; then
-        print_config
-    fi
-
-    ZONECFG_SCRIPT=""
 }
 
 print_config() {
     logmsg_info "Currently active configuration variables of ${_SCRIPT_NAME} ${_SCRIPT_ARGS}:" \
-        "DATASET_CONTAINMENT_GIZ='$DATASET_CONTAINMENT_GIZ'" \
+	"DATASET_CONTAINMENT_GIZ='$DATASET_CONTAINMENT_GIZ'" \
+	"DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'" \
 	"DATASET_CONTAINMENT_GIZ_DEDUP='$DATASET_CONTAINMENT_GIZ_DEDUP'" \
 	"DATASET_CONTAINMENT_GIZ_COMPRESSION='$DATASET_CONTAINMENT_GIZ_COMPRESSION'" \
-        "DATASET_CONTAINMENT_DIZ='$DATASET_CONTAINMENT_DIZ'" \
+	"DATASET_CONTAINMENT_DIZ='$DATASET_CONTAINMENT_DIZ'" \
+	"DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'" \
 	"DATASET_CONTAINMENT_DIZ_COMPRESSION='$DATASET_CONTAINMENT_DIZ_COMPRESSION'" \
 	"CAN_ZFS_CREATE_RECURSIVE='$CAN_ZFS_CREATE_RECURSIVE'" \
 	"TARGET_ZONE='$TARGET_ZONE'" \
@@ -679,18 +678,39 @@ print_config() {
 	"ACTION='$ACTION'"
 }
 
+parse_config_startup() {
+    # Args: pass "$@" of the script
+    for F in "/etc/zones/zonemgr.conf" "${HOME}/.zonemgr.conf" ; do
+        if [ -s "$F" ] ; then
+            parse_config_file "$F" || true
+        fi
+    done
+
+    DO_PRINT_CONFIG=0
+    parse_config_args "$@"
+    if [ "$DO_PRINT_CONFIG" = 1 ] || [ "$ZONEMGR_DEBUGLEVEL" -gt "$ZONEMGR_DEBUGLEVEL_INFO" ]; then
+        print_config
+    fi
+
+    ZONECFG_SCRIPT=""
+}
+
 ############################################################################
 # Zone-creation task stack:
 ############################################################################
 
 zfs_dataset_exists() {
-    test "$(zfs list -H -o name "$1")" = "$1"
+    test "$(zfs list -H -o name "$1")" = "$1" && return 0
+    local OUT
+    OUT="$(zfs list "$1")" && [ -n "$OUT" ] && return 0
+    return 1
 }
 
 zfs_create_recursive() {
     # Newer "zfs" command is able to create parent datasets; older ones can't.
     # Last arg is assumed to be dataset name; passes other args to the last
-    # called "zfs" command (so e.g. options are applied to the target one).
+    # called (in loop) "zfs" command (so e.g. provided zfs options are applied
+    # only to the target dataset).
     [ "$#" -gt 0 ] && \
         TARGET_DS="$(while [ "$#" -gt 1 ]; do shift; done; echo "$1")" \
 	|| TARGET_DS=""
@@ -717,7 +737,7 @@ zfs_create_recursive() {
         $ELEVATE_CMD zfs create -p "$@"
 	return $?
     else
-        # Create parents, recursively - no extra options
+        # Create parents, recursively - with no extra options
         zfs_create_recursive "$(dirname "$TARGET_DS")" || return $?
         # Finally (in top call) create the dataset maybe with extra options
         $ELEVATE_CMD zfs create "$@"
@@ -751,6 +771,11 @@ create_dataset_containment_GIZ() {
         on|off)
             zfs set -o dedup="$DATASET_CONTAINMENT_GIZ_DEDUP" "$DATASET_CONTAINMENT_GIZ" || true ;;
     esac
+    if [ -n "$DATASET_CONTAINMENT_GIZ_MPT" ]; then
+        zfs set -o mountpoint="$DATASET_CONTAINMENT_GIZ_MPT" "$DATASET_CONTAINMENT_GIZ" || true
+    fi
+    zfs set -o canmount=auto "$DATASET_CONTAINMENT_GIZ"
+    zfs mount "$DATASET_CONTAINMENT_GIZ" || true
 }
 
 create_dataset_containment_DIZ() {
@@ -771,14 +796,20 @@ create_dataset_containment_DIZ() {
     zfs set -o compression="$DATASET_CONTAINMENT_DIZ_COMPRESSION" "$DATASET_CONTAINMENT_DIZ"
     zfs set -o com.sun:auto-snapshot=false "$DATASET_CONTAINMENT_DIZ" || true
     zfs set -o dedup=off "$DATASET_CONTAINMENT_DIZ" || true
+    if [ -n "$DATASET_CONTAINMENT_DIZ_MPT" ]; then
+        zfs set -o mountpoint="$DATASET_CONTAINMENT_DIZ_MPT" "$DATASET_CONTAINMENT_DIZ" || true
+    fi
+    zfs set -o canmount=auto "$DATASET_CONTAINMENT_DIZ"
+    zfs mount "$DATASET_CONTAINMENT_DIZ" || true
 }
 
 ############################################################################
-# Create the golden-image zone from scratch, if the name is not yet occupied:
+# Create the golden-image zone from scratch, if the name is not yet occupied
+# The zonecfg_snippet_*() routines print a bit of configuration for zonecfg
 ############################################################################
 
 # Let specify image template type (linked, brand, etc.) to set up the config
-zonecfg_create() {
+zonecfg_snippet_create() {
     if [ -n "$ORIGIN_GIZ" ] ; then
         echo "create -t $ORIGIN_GIZ"
     else
@@ -793,24 +824,24 @@ zonecfg_create() {
 
 # Minimal config zone-wise (no resources, filesystem/dataset provisions,
 # exclusive networking, user accounts...); set autoboot:=false
-zonecfg_basics() {
+zonecfg_snippet_basics() {
     [ -n "$TARGET_ZONE" ] || die "TARGET_ZONE is not defined"
     cat << EOF
 set ip-type=exclusive
 set autoboot=false
 EOF
     case "$ACTION" in
-	create-giz) echo "set zonepath=$DATASET_CONTAINMENT_GIZ/$TARGET_ZONE" ;;
-	create-diz) echo "set zonepath=$DATASET_CONTAINMENT_DIZ/$TARGET_ZONE" ;;
-	*) logmsg_warn "Uncertain which containment dataset to use for ACTION='$ACTION'" ;;
+	create-giz) echo "set zonepath=$DATASET_CONTAINMENT_GIZ_MPT/$TARGET_ZONE" ;;
+	create-diz) echo "set zonepath=$DATASET_CONTAINMENT_DIZ_MPT/$TARGET_ZONE" ;;
+	*) logmsg_warn "Uncertain which containment dataset to use for ACTION='$ACTION', so none was set for zone '$TARGET_ZONE'" ;;
     esac
 }
 
-# Let specify package source(s) - URL to IPS repo, possibly just one
+# TBD: Let specify package source(s) - URL to IPS repo, possibly just one
 # publisher may be allowed for initial installation, but more may be added
-# after initial "image" setup (TBD)
+# after initial "image" setup
 
-# Consider packaging, tarballs, zfs-send images to instantiate zone root (TBD)
+# TBD: Consider packaging, tarballs, zfs-send images to instantiate zone root
 
 ############################################################################
 # Create a golden-image zone from existing golden-image zone (clone current
@@ -818,7 +849,7 @@ EOF
 ############################################################################
 
 # Add metadata (zonecfg field?) to track which GIZ this image was built from
-zonecfg_attr_origin() {
+zonecfg_snippet_attr_origin() {
     VAL="undefined"
     if [ -n "$ORIGIN_GIZ" ] ; then
         VAL="giz:$ORIGIN_GIZ"
@@ -840,11 +871,11 @@ EOF
     unset VAL
 }
 
+# TBD: Specify package(s) to remove from the zone compared to original while
+# creating it (e.g. to avoid conflicts for subsequently added packages)
 
-# Specify package(s) to remove from the zone compared to original while
-# creating it (e.g. to avoid conflicts for subsequently added packages) - TBD
-
-# Specify package(s) to add into the zone compared to original while creating
+# TBD: Specify package(s) to add into the zone compared to original while
+# creating it
 
 # Same limitations (e.g. simplicity of config) as above
 
@@ -855,8 +886,9 @@ EOF
 
 # Manage VNICs?
 create_vnic() {
-    # input value is "LINK[|VLAN[|MAC]]" with returned vnic name based on
-    # value of TARGET_ZONE (if present)
+    # Input value is "LINK[|VLAN[|MAC]]" string with returned vnic name
+    # based on the value of TARGET_ZONE (if present).
+    # Output: echoes the vnic name if successfully created
     LINK="$(echo "$1" | (IFS='|' read L V M ; echo "$L"))"
     if [ -z "$LINK" ]; then
 	logmsg_error "Did not find a LINK in specified arguments: '$1'"
@@ -877,7 +909,7 @@ create_vnic() {
     [ -z "$MAC" ] || DLADM_ARGS="$DLADM_ARGS -m ${MAC}"
     [ -z "$VLAN" ] || DLADM_ARGS="$DLADM_ARGS -v ${VLAN}"
 
-    $ELEVATE_CMD dladm create-vnic $DLADM_ARGS "$VNIC" && \
+    $ELEVATE_CMD dladm create-vnic $DLADM_ARGS "$VNIC" >&2 && \
     echo "$VNIC"
 }
 
@@ -885,21 +917,51 @@ delete_vnic() {
     $ELEVATE_CMD dladm delete-vnic "$1"
 }
 
+# TBD: Destroy the VNIC when scrapping the zone, but do not use
+# temporary VNICs (-t) which only last until reboot... and/or 
+# TBD: add a way to find and wipe orphaned auto-vnics (not configured
+# in any known zone, not necessarily running, and not with a "zoned"
+# linkprop) as e.g. a cron job.
+list_auto_vnics_all() {
+    #$ELEVATE_CMD \
+    dladm show-vnic -o LINK | egrep '^auto(giz|diz)'
+}
+
+list_auto_vnics_zonecfg() {
+    #$ELEVATE_CMD \
+    zonecfg -z "$1" "info attr name=autovnic"
+    TBD # test this on various unsuspecting victims
+}
+
+list_auto_vnics_orphaned() {
+    TBD
+    # Inspect "claimed" vnics: start with list_auto_vnics_all() and cut off:
+    # "autovnic" linkprops in each known zone
+    # any nics delegated into each known zone
+    # vnics with a "zoned" attribute currently
+}
+
 # Add resource definitions (datasets/lofs, network, user accounts/ldap, ...)
-zonecfg_assign_vnic() {
+# TBD: Constrain resources (cap memory/swap, set cpu-shares, ncpus and/or
+# host-defined resource pools in zonecfg; set tmpfs limits in vfstab)
+zonecfg_snippet_assign_nic() {
     cat << EOF
 add net
 set physical=$1
 end
 EOF
+    # TBD: Do we need a "match" for the device too?
+    # TBD: Do we need to precreate dev/x -> dev/net/x symlinks in zone
+    # container of the rootfs? Probably not for builders, maybe yes for
+    # infra zones like firewalls/routers based on a common dummy...
 }
 
-zonecfg_auto_vnics() {
+zonecfg_snippet_auto_vnics() {
     VNICS=""
     for LVM in $AUTO_VNICS ; do
         NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] || die "Failed to create VNIC by spec: $LVM"
         VNICS="$VNICS $NEWVNIC"
-        zonecfg_assign_vnic "$NEWVNIC"
+        zonecfg_snippet_assign_nic "$NEWVNIC"
     done
     if [ -n "$VNICS" ]; then
          cat << EOF
@@ -912,7 +974,30 @@ EOF
     fi
 }
 
-# Script cloning of file-based user/shadow and group account data from GZ
+zonecfg_snippet_assign_dataset() {
+    cat << EOF
+add dataset
+set name=$1
+end
+EOF
+}
+
+zonecfg_snippet_assign_lofs() {
+    local HOSTDIR="$1"
+    local ZONEDIR="$2"
+    [ -n "${HOSTDIR-}" ] || die "Bad args to zonecfg_snippet_assign_lofs()"
+    [ -n "${ZONEDIR-}" ] || ZONEDIR="${HOSTDIR-}"
+    cat << EOF
+add fs
+set dir=$ZONEDIR
+set special=$HOSTDIR
+set type=lofs
+add options [rw,nodevices]
+end
+EOF
+}
+
+# Scripted cloning of file-based user/shadow and group account data from GZ
 # to LZ for respective specified accounts
 clone_group() {
     TBD
@@ -922,13 +1007,58 @@ clone_user() {
     TBD
 }
 
+clone_groups() {
+    local RES=0
+    for G in $SOMETHING_TBD ; do
+        clone_group "$G" || RES=$?
+    done
+    return $RES
+}
+
+clone_users() {
+    local RES=0
+    for U in $SOMETHING_TBD ; do
+        clone_user "$U" || RES=$?
+    done
+    return $RES
+}
+
+# TBD: Configure LDAP (hosts, users, groups, netgroups; client; registration;
+# pam; an openldap.conf for other tools) by editing and/or adding files in NGZ
+setup_ldap() {
+    TBD
+}
+
 ############################################################################
 # General maintenance actions:
 ############################################################################
 
-# List all managed, or only GIZ/DIZ zones (roots under our container datasets)
+# List all managed, or only GIZ/only DIZ zones (zones with roots under our
+# container datasets)
+#   Assume no whitespaces in path and zone names
+#   Support legacy dumber zoneadm syntax
+list_zones_managed_giz() {
+    # TBD: combine grep and awk when I'd be in illumos (zonepath is $4 IIRC?)
+    # and verify zonename is the $2
+    zoneadm list -cv | grep " $DATASET_CONTAINMENT_GIZ_MPT/" | awk '{print $2}'
+}
+
+list_zones_managed_diz() {
+    zoneadm list -cv | grep " $DATASET_CONTAINMENT_DIZ_MPT/" | awk '{print $2}'
+}
+
+list_zones_managed_all() {
+    zoneadm list -cv | egrep " ($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" | awk '{print $2}'
+}
 
 # Iterate all golden-image zones to upgrade them (e.g. from crontab)
+# We can upgrade other zones (e.g. DIZ) but on a case-by-case basis
+# (e.g. an explicit request to test the updateability), not wholesale
+upgrade_zones_giz() {
+    for Z in $(list_zones_managed_giz) ; do
+        upgrade_zone "$Z"
+    done
+}
 
 ############################################################################
 # General actions against any managed zones (GIZ or DIZ):
@@ -936,22 +1066,131 @@ clone_user() {
 
 # Generate a unique name-part for the zone (hash of concat of sorted requested
 # pkg names?) that may get prefixed and/or suffixed for GIZ and DIZ instances
+# In particular, this should help compare which zone to use as origin (and/or
+# to create an intermediate GIZ to clone more such DIZes).
+# TBD: Store a plaintext list of required packages in a zonecfg attr?
+generate_zonename() {
+    TBD
+}
+
+generate_zonecfg_snippets() {
+    zonecfg_snippet_create
+    zonecfg_snippet_basics
+    zonecfg_snippet_attr_origin
+    #[ "$ACTION" = create-diz ] && \
+    zonecfg_snippet_auto_vnics
+    # if ... zonecfg_snippet_assign_dataset "DSNAME"
+    # if ... zonecfg_snippet_assign_lofs "HOSTDIR" "ZONEDIR"
+    echo "verify"
+    echo "commit"
+}
+
+generate_zonecfg_script() {
+    ZONECFG_SCRIPT="$(generate_zonecfg_snippets)" && [ -n "$ZONECFG_SCRIPT" ] \
+    || die "Could not generate ZONECFG_SCRIPT"
+}
 
 # Snapshot a zone
+snapshot_zone() {
+    local ZONENAME="$1"
+    local SNAPCOMMENT="$2"
+    TBD
+    # Export zonecfg and/or XML into zoneroot container dataset?
+    # Stop zone? (option?)
+    # Snapshot zoneroot container dataset + delegated datasets
+    # Restart zone? (if was stopped by us)
+}
+
+install_zone() {
+    [ -n "$TARGET_ZONE" ] || TARGET_ZONE="$(generate_zonename)"
+    generate_zonecfg_script
+    echo "$ZONECFG_SCRIPT" | zonecfg -z "${TARGET_ZONE}" || die "Could not configure zone '$TARGET_ZONE' with this script:" "$ZONECFG_SCRIPT"
+    # TBD: Older Solarises - precreate zoneroot dataset?
+    # TBD: Use args to template+brand based install to specify publishers
+    # and packages, or just install + later revise?
+    zoneadm -z "${TARGET_ZONE}" install || die "Could not install zone '$TARGET_ZONE'"
+    # Add pkgs/pubs?
+    setup_zone_postinstall
+    snapshot_zone "${TARGET_ZONE}" "initial-install"
+}
 
 # Clone a zone (clone current state, last or specified snapshot)
+# This may become a better tuned and flexible solution than "zoneadm clone"
+clone_zone() {
+    TBD
+    # If using existing snapshot, use the stashed copy of that older
+    # zone config as template (if differs from current) - create
+    # a temporary zonecfg and overwrite with stashed file, etc.,
+    # otherwise make snapshot of origin and use current zone config.
+    # Clone the zoneroot and delegated datasets.
+    # Generate new zone config via snippets
+    # TBD : verify that origin NICs (if any - should not be in a golden image
+    # in the first place) are not used in new zone
+    setup_zone_postinstall
+}
+
+setup_zone_postinstall() {
+    clone_groups
+    clone_users
+    # setup_ldap
+}
 
 # pkg-update contents of a (golden-image?) zone, snapshot after success
+upgrade_zone() {
+    local ZONENAME="$1"
+    TBD
+    # snapshot zoneroot+delegations before update
+    # zoneadm mount/ready the zone (if not running)
+    # pkg update in the zoneroot from GZ
+    # zoneadm halt the zone (if was not running initially)
+    # snapshot zoneroot+delegations if successful
+}
+
+# Configure specified publisher(s) into the named zone, snapshot after success
+install_publishers() {
+    TBD
+}
 
 # Install specified package(s) into the named zone, snapshot after success
+install_packages() {
+    TBD
+}
 
 # Start, stop a zone
+start_zone() {
+    TBD
+}
 
-# Destroy a zone (including config)
+stop_zone() {
+    TBD
+}
+
+restart_zone() {
+    TBD
+}
+
+# Destroy a zone (including config, delegated datasets, zoneroot and VNICs)
+destroy_zone() {
+    TBD
+}
 
 # Halt and roll back to specified snapshot (e.g. reuse same)
+rollback_zone() {
+    TBD
+}
 
 # Run a command inside the zone (via zlogin), maybe as a specified account
+run_in_zone() {
+    TBD
+}
+
+############################################################################
+# Wrap the single-use zone routine
+############################################################################
+diz_run() {
+    TBD
+    # Create the DIZ, boot it, run the command, halt, destroy (e.g. one build)
+}
 
 ############################################################################
 # Do the run-time work
@@ -965,8 +1204,18 @@ fi
 
 settraps "exit_cleanup"
 
-parse_config "$@"
+parse_config_startup "$@"
 
 create_dataset_containment_GIZ
-:
+DATASET_CONTAINMENT_GIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_GIZ")"
+[ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
 
+create_dataset_containment_DIZ
+DATASET_CONTAINMENT_DIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_DIZ")"
+[ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
+
+case "$ACTION" in
+    *) echo "Would do ACTION='$ACTION'" ;;
+esac
+
+:
