@@ -1,0 +1,6 @@
+# Minimal test: ability to parse the script and print help
+os: linux
+
+sudo: false
+
+script: ./bin/zonemgr --help
