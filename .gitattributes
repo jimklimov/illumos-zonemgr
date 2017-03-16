@@ -1,0 +1,24 @@
+# Set the default behavior, in case people don't have core.autocrlf set.
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+*.txt text
+*.asciidoc text
+*.adoc text
+*.md text
+*.html text
+*.htm text
+*.xml text
+
+# Even if we edit shell scripts with a capable editor on Windows, we might
+# scp them or save over cifs/nfs to a Unix-like OS which cares about line
+# ends when executing
+bin/zonemgr text=lf
+*.sh text=lf
+*.py text=lf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.pdf binary
