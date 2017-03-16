@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#! /bin/bash
 
 # Portability Note: BASH-specific syntax is likely present below, so
 # the interpreter is fixed in the shebang above. YMMV with other shells.
