@@ -273,7 +273,7 @@ settraps_exit_clear() {
     # Reset the exit() handler to defaults, used in routines below
     for SS in EXIT SIGEXIT 0 ERR SIGERR; do
         trap "-" "$SS" 2>/dev/null \
-            || logmsg_warn "Could not reset signal handler for '$SS'"
+            || logmsg_debug "Could not reset signal handler for '$SS'"
     done
     set +E      # unset -o errtrace
 }
@@ -305,7 +305,7 @@ settraps_nonfatal() {
         fi
         case "$1" in
             -|"") trap "$1" "$P$S" 2>/dev/null \
-                || logmsg_warn "Could not set up signal handler for '$P$S'" ;;
+                || logmsg_debug "Could not set up signal handler for '$P$S'" ;;
             *)    ERRHANDLER="$*"
                   case "$ERRHANDLER" in
                     *";"|*"; "|*";  ") ;;
@@ -341,7 +341,7 @@ if [ "${ERRIGNORE-}" = no ]; then
   { (settraps_exit_clear; exit ${ERRCODE-} 2>/dev/null 2>&1); '"$ERRHANDLER"' } ;
 else ERRIGNORE=""; fi ;' \
                     "$P$S" 2>/dev/null \
-                    || logmsg_warn "Could not set up signal handler for '$P$S'"
+                    || logmsg_debug "Could not set up signal handler for '$P$S'"
                   ;;
         esac
     done; done
