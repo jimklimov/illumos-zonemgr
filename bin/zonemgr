@@ -670,6 +670,7 @@ parse_config_args() {
                 esac
                 ;;
             create-giz|create-diz|list|list-giz|list-diz|destroy|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
+            list-all) ACTION="list" ;;
             exec-diz|run-diz) ACTION="exec-diz"
                 [ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="always"
                 [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
