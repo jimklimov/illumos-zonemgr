@@ -824,6 +824,9 @@ create_dataset_containment_GIZ() {
     $ELEVATE_CMD zfs set canmount=on "$DATASET_CONTAINMENT_GIZ"
     $ELEVATE_CMD zfs mount "$DATASET_CONTAINMENT_GIZ" || \
         logmsg_warn "Could not mount ZFS dataset: '$DATASET_CONTAINMENT_GIZ'"
+
+    # Report mount status in log and exit code
+    mount | grep "$DATASET_CONTAINMENT_GIZ"
 }
 
 create_dataset_containment_DIZ() {
@@ -858,6 +861,9 @@ create_dataset_containment_DIZ() {
     $ELEVATE_CMD zfs set canmount=on "$DATASET_CONTAINMENT_DIZ"
     $ELEVATE_CMD zfs mount "$DATASET_CONTAINMENT_DIZ" || \
         logmsg_warn "Could not mount ZFS dataset: '$DATASET_CONTAINMENT_DIZ'"
+
+    # Report mount status in log and exit code
+    mount | grep "$DATASET_CONTAINMENT_DIZ"
 }
 
 ############################################################################
