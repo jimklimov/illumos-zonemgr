@@ -1411,12 +1411,13 @@ case "$ACTION" in
 #   pkg-install)
 #   pkg-uninstall)
 #   exec-diz)
-#   boot)
-#   halt)
-#   reboot)
-#   ready)
-#   mount)
-#   unmount)
+    boot|halt|reboot|ready|mount|unmount)
+        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
+        check_is_managed_zone "$TARGET_ZONE"
+        $ELEVATE_CMD \
+            zoneadm -z "$TARGET_ZONE" "$ACTION" \
+            || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
+        ;;
     *) echo "Would do ACTION='$ACTION'" ;;
 esac
 
