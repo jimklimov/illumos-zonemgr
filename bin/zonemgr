@@ -619,7 +619,15 @@ parse_config_args() {
                 shift
                 ;;
             --print-config) DO_PRINT_CONFIG=1 ;;
-            -d|--debug) ZONEMGR_DEBUGLEVEL_INFO="$2"; shift ;;
+            -d|--debug)
+                if [ "$2" -ge -1 ] 2>/dev/null ; then
+                    ZONEMGR_DEBUG="$2"
+                    shift
+                else
+                    ZONEMGR_DEBUG="$(expr $ZONEMGR_DEBUG + 1)" || \
+                        ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_DEBUG"
+                fi
+                ;;
             -O|--outfile) OUTFILE="$2"; shift ;;
             -n|--dryrun|--dry-run) ELEVATE_CMD="echo === DRY-RUN: $ELEVATE_CMD" ;;
             -t|--template) TEMPLATE_GIZ="$2"; shift ;;
