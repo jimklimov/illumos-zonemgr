@@ -1270,6 +1270,12 @@ settraps "exit_cleanup"
 
 parse_config_startup "$@"
 
+# CLI args or config files could change the setting
+if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_TRACEEXEC" ] ; then
+    logmsg_info "ZONEMGR_DEBUG is $ZONEMGR_DEBUG >= $ZONEMGR_DEBUGLEVEL_TRACEEXEC : enabling source-code tracing!" >&2
+    set -x
+fi
+
 create_dataset_containment_GIZ
 DATASET_CONTAINMENT_GIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_GIZ")"
 [ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
