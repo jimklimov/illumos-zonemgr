@@ -1282,15 +1282,22 @@ if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_TRACEEXEC" ] ; then
     set -x
 fi
 
+# Make sure container-datasets are available
+logmsg_info "Ensuring availability of container dataset for GIZes"
 create_dataset_containment_GIZ
-DATASET_CONTAINMENT_GIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_GIZ")"
-[ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
+DATASET_CONTAINMENT_GIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_GIZ")" \
+    && [ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
     || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
+df -k "$DATASET_CONTAINMENT_GIZ_MPT" 2>/dev/null \
+    || die "Not mounted: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
 
+logmsg_info "Ensuring availability of container dataset for DIZes"
 create_dataset_containment_DIZ
-DATASET_CONTAINMENT_DIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_DIZ")"
-[ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
+DATASET_CONTAINMENT_DIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_DIZ")" \
+    && [ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
     || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
+df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null \
+    || die "Not mounted: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
 
 case "$ACTION" in
     *) echo "Would do ACTION='$ACTION'" ;;
