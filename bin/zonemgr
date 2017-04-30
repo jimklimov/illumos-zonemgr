@@ -744,7 +744,7 @@ zfs_create_recursive() {
         ""|-*|/*|*/) die "Bad args to zfs_create_recursive()" ;;
         */*) TARGET_POOL="$(echo "$TARGET_DS" | sed -e 's,^\([^/]*\)/.*,\1,')"
             if ! zfs_dataset_exists "$TARGET_POOL" ] || \
-               ! zpool list "$TARGET_POOL" \
+               ! zpool list "$TARGET_POOL" > /dev/null 2>&1 \
             ; then
                 die "zfs_create_recursive() requested for '$TARGET_DS' in non-existent pool '$TARGET_POOL'"
             fi
