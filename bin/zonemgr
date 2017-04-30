@@ -789,21 +789,21 @@ create_dataset_containment_GIZ() {
     zfs_create_recursive "$DATASET_CONTAINMENT_GIZ" || \
         die "create_dataset_containment_GIZ(): Could not create '$DATASET_CONTAINMENT_GIZ'"
 
-    zfs set atime=off "$DATASET_CONTAINMENT_GIZ"
-    zfs set compression="$DATASET_CONTAINMENT_GIZ_COMPRESSION" "$DATASET_CONTAINMENT_GIZ"
-    zfs set com.sun:auto-snapshot=false "$DATASET_CONTAINMENT_GIZ" || \
+    $ELEVATE_CMD zfs set atime=off "$DATASET_CONTAINMENT_GIZ"
+    $ELEVATE_CMD zfs set compression="$DATASET_CONTAINMENT_GIZ_COMPRESSION" "$DATASET_CONTAINMENT_GIZ"
+    $ELEVATE_CMD zfs set com.sun:auto-snapshot=false "$DATASET_CONTAINMENT_GIZ" || \
         logmsg_warn "Could not set ZFS props: auto-snapshot on 'DATASET_CONTAINMENT_GIZ'"
     case "$DATASET_CONTAINMENT_GIZ_DEDUP" in
         on|off)
-            zfs set dedup="$DATASET_CONTAINMENT_GIZ_DEDUP" "$DATASET_CONTAINMENT_GIZ" || \
+            $ELEVATE_CMD zfs set dedup="$DATASET_CONTAINMENT_GIZ_DEDUP" "$DATASET_CONTAINMENT_GIZ" || \
                 logmsg_warn "Could not set ZFS props: dedup on 'DATASET_CONTAINMENT_GIZ'" ;;
     esac
     if [ -n "$DATASET_CONTAINMENT_GIZ_MPT" ]; then
-        zfs set mountpoint="$DATASET_CONTAINMENT_GIZ_MPT" "$DATASET_CONTAINMENT_GIZ" || \
+        $ELEVATE_CMD zfs set mountpoint="$DATASET_CONTAINMENT_GIZ_MPT" "$DATASET_CONTAINMENT_GIZ" || \
             logmsg_warn "Could not set ZFS props: mountpoint on 'DATASET_CONTAINMENT_GIZ'"
     fi
-    zfs set canmount=auto "$DATASET_CONTAINMENT_GIZ"
-    zfs mount "$DATASET_CONTAINMENT_GIZ" || \
+    $ELEVATE_CMD zfs set canmount=auto "$DATASET_CONTAINMENT_GIZ"
+    $ELEVATE_CMD zfs mount "$DATASET_CONTAINMENT_GIZ" || \
         logmsg_warn "Could not mount ZFS dataset: 'DATASET_CONTAINMENT_GIZ'"
 }
 
@@ -821,18 +821,18 @@ create_dataset_containment_DIZ() {
     zfs_create_recursive "$DATASET_CONTAINMENT_DIZ" || \
         die "create_dataset_containment_DIZ(): Could not create '$DATASET_CONTAINMENT_DIZ'"
 
-    zfs set atime=off "$DATASET_CONTAINMENT_DIZ"
-    zfs set compression="$DATASET_CONTAINMENT_DIZ_COMPRESSION" "$DATASET_CONTAINMENT_DIZ"
-    zfs set com.sun:auto-snapshot=false "$DATASET_CONTAINMENT_DIZ" || \
+    $ELEVATE_CMD zfs set atime=off "$DATASET_CONTAINMENT_DIZ"
+    $ELEVATE_CMD zfs set compression="$DATASET_CONTAINMENT_DIZ_COMPRESSION" "$DATASET_CONTAINMENT_DIZ"
+    $ELEVATE_CMD zfs set com.sun:auto-snapshot=false "$DATASET_CONTAINMENT_DIZ" || \
         logmsg_warn "Could not set ZFS props: auto-snapshot on 'DATASET_CONTAINMENT_DIZ'"
-    zfs set dedup=off "$DATASET_CONTAINMENT_DIZ" || \
+    $ELEVATE_CMD zfs set dedup=off "$DATASET_CONTAINMENT_DIZ" || \
         logmsg_warn "Could not set ZFS props: dedup on 'DATASET_CONTAINMENT_DIZ'"
     if [ -n "$DATASET_CONTAINMENT_DIZ_MPT" ]; then
-        zfs set mountpoint="$DATASET_CONTAINMENT_DIZ_MPT" "$DATASET_CONTAINMENT_DIZ" || \
+        $ELEVATE_CMD zfs set mountpoint="$DATASET_CONTAINMENT_DIZ_MPT" "$DATASET_CONTAINMENT_DIZ" || \
             logmsg_warn "Could not set ZFS props: mountpoint on 'DATASET_CONTAINMENT_DIZ'"
     fi
-    zfs set canmount=auto "$DATASET_CONTAINMENT_DIZ"
-    zfs mount "$DATASET_CONTAINMENT_DIZ" || \
+    $ELEVATE_CMD zfs set canmount=auto "$DATASET_CONTAINMENT_DIZ"
+    $ELEVATE_CMD zfs mount "$DATASET_CONTAINMENT_DIZ" || \
         logmsg_warn "Could not mount ZFS dataset: 'DATASET_CONTAINMENT_DIZ'"
 }
 
