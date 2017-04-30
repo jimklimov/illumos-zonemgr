@@ -546,6 +546,7 @@ Actions: the last specified action is performed (so please only call one).
             milestone to get reached
     stop|halt           Halt the specified zone
     restart|reboot      Reboot the specified zone
+    mount|ready|unmount Change FS state of the specified zone filesystems
     pkg-refresh         Fetch the updated packaging metadata
     pkg-upgrade         Upgrade packages installed in this zone (no refresh)
     pkg-install         Install packages specified in "-p" list
@@ -676,6 +677,8 @@ parse_config_args() {
             start|boot) ACTION="boot" ;;
             stop|halt|poweroff) ACTION="halt" ;;
             restart|reboot|reset) ACTION="reboot" ;;
+            ready|mount) ACTION="$1" ;;
+            unmount|umount) ACTION="unmount" ;;
             *) logmsg_error "Unknown CLI argument: $1" ; exit 1 ;;
         esac
         shift
@@ -1336,6 +1339,9 @@ case "$ACTION" in
 #   boot)
 #   halt)
 #   reboot)
+#   ready)
+#   mount)
+#   unmount)
     *) echo "Would do ACTION='$ACTION'" ;;
 esac
 
