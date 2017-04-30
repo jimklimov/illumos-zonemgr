@@ -1315,6 +1315,27 @@ df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null \
 
 # Remember to use check_is_managed_zone() before acting on existing zones
 case "$ACTION" in
+#   create-giz)
+#   create-diz)
+#   create)
+    list)
+        logmsg_info "Listing all managed zones..."
+        list_zones_managed_all || exit ;;
+    list-giz)
+        logmsg_info "Listing GIZ managed zones..."
+        list_zones_managed_giz || exit ;;
+    list-diz)
+        logmsg_info "Listing DIZ managed zones..."
+        list_zones_managed_diz || exit ;;
+#   destroy)
+#   pkg-refresh)
+#   pkg-upgrade)
+#   pkg-install)
+#   pkg-uninstall)
+#   exec-diz)
+#   boot)
+#   halt)
+#   reboot)
     *) echo "Would do ACTION='$ACTION'" ;;
 esac
 
