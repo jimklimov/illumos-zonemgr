@@ -288,6 +288,14 @@ settraps_exit_clear() {
     set +E      # unset -o errtrace
 }
 
+clean_exit() {
+    _EXIT_CODE_PREV=$?
+    _EXIT_CODE_ARG="${1-}"
+    [ -n "${_EXIT_CODE_ARG}" ] && _EXIT_CODE="${_EXIT_CODE_ARG}" || _EXIT_CODE="${_EXIT_CODE_PREV}"
+    settraps_exit_clear
+    exit $_EXIT_CODE
+}
+
 settraps_nonfatal() {
     # While the legacy common settraps() wraps the caller's custom handler "$*"
     # with an exit(), this one is not fatal by itself, and it does not subshell
@@ -1358,7 +1366,7 @@ case "$ACTION" in
             logmsg_info "Zone '$TARGET_ZONE' exists and is manageable by this script"
         else
             logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script"
-            exit 1
+            clean_exit 1
         fi
         ;;
     is-managed-diz)
@@ -1366,7 +1374,7 @@ case "$ACTION" in
             logmsg_info "Zone '$TARGET_ZONE' exists and is a DIZ manageable by this script"
         else
             logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a DIZ"
-            exit 1
+            clean_exit 1
         fi
         ;;
     is-managed-giz)
@@ -1374,7 +1382,7 @@ case "$ACTION" in
             logmsg_info "Zone '$TARGET_ZONE' exists and is a GIZ manageable by this script"
         else
             logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a GIZ"
-            exit 1
+            clean_exit 1
         fi
         ;;
 #   destroy)
@@ -1392,5 +1400,5 @@ case "$ACTION" in
     *) echo "Would do ACTION='$ACTION'" ;;
 esac
 
-:
+clean_exit
 
