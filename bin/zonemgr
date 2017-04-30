@@ -614,7 +614,7 @@ parse_config_args() {
         case "$1" in
             -h|-help|--help) usage ; exit 0 ;;
             --config)
-                parse_config_file || exit $?
+                parse_config_file "$2" || exit $?
                 shift
                 ;;
             --print-config) DO_PRINT_CONFIG=1 ;;
