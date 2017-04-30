@@ -1371,13 +1371,13 @@ case "$ACTION" in
 #   create)
     list)
         logmsg_info "Listing all managed zones..."
-        list_zones_managed_all || exit ;;
+        list_zones_managed_all || clean_exit "No such zones were found" ;;
     list-giz)
         logmsg_info "Listing GIZ managed zones..."
-        list_zones_managed_giz || exit ;;
+        list_zones_managed_giz || clean_exit "No such zones were found" ;;
     list-diz)
         logmsg_info "Listing DIZ managed zones..."
-        list_zones_managed_diz || exit ;;
+        list_zones_managed_diz || clean_exit "No such zones were found" ;;
     is-managed-any)
         [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
         if is_managed_zone "$TARGET_ZONE" ; then
