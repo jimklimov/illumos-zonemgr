@@ -712,7 +712,7 @@ parse_config_startup() {
     DO_PRINT_CONFIG=0
     parse_config_args "$@"
     if [ "$DO_PRINT_CONFIG" = 1 ] || \
-       [ "$ZONEMGR_DEBUGLEVEL" -gt "$ZONEMGR_DEBUGLEVEL_INFO" ] \
+       [ "$ZONEMGR_DEBUG" -gt "$ZONEMGR_DEBUGLEVEL_INFO" ] \
     ; then
         print_config
     fi
