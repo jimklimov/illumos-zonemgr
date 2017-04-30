@@ -725,9 +725,9 @@ parse_config_startup() {
 ############################################################################
 
 zfs_dataset_exists() {
-    test "$(zfs list -H -o name "$1")" = "$1" && return 0
+    test "$(zfs list -H -o name "$1" 2>/dev/null)" = "$1" && return 0
     local OUT
-    OUT="$(zfs list "$1")" && [ -n "$OUT" ] && return 0
+    OUT="$(zfs list "$1" 2>/dev/null)" && [ -n "$OUT" ] && return 0
     return 1
 }
 
