@@ -1365,6 +1365,7 @@ case "$ACTION" in
         logmsg_info "Listing DIZ managed zones..."
         list_zones_managed_diz || exit ;;
     is-managed-any)
+        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
         if is_managed_zone "$TARGET_ZONE" ; then
             logmsg_info "Zone '$TARGET_ZONE' exists and is manageable by this script"
         else
@@ -1373,6 +1374,7 @@ case "$ACTION" in
         fi
         ;;
     is-managed-diz)
+        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
         if is_managed_zone_diz "$TARGET_ZONE" ; then
             logmsg_info "Zone '$TARGET_ZONE' exists and is a DIZ manageable by this script"
         else
@@ -1381,6 +1383,7 @@ case "$ACTION" in
         fi
         ;;
     is-managed-giz)
+        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
         if is_managed_zone_giz "$TARGET_ZONE" ; then
             logmsg_info "Zone '$TARGET_ZONE' exists and is a GIZ manageable by this script"
         else
