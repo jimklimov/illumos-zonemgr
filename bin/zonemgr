@@ -550,6 +550,11 @@ Actions: the last specified action is performed (so please only call one).
     pkg-upgrade         Upgrade packages installed in this zone (no refresh)
     pkg-install         Install packages specified in "-p" list
     pkg-uninstall       Uninstall packages specified in "-P" list
+
+NOTE: The user account running this script should be permitted to elevate
+privileges for certain operations. You can use config files to use "sudo",
+or better stick with default "pfexec" and set up Solaris RBAC for the account:
+    usermod -P "ZFS File System Management,ZFS Storage Management,Zone Management,Zone Security,Network Management" $USER
 EOF
 }
 
