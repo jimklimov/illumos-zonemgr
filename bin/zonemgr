@@ -97,11 +97,15 @@ case "${ZONEMGR_DEBUG-}" in
     ""|"-")
         ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_INFO"
         ;;
-    [Yy]|[Yy][Ee][Ss]|[Oo][Nn]|[Tt][Rr][Uu][Ee])     ZONEMGR_DEBUG=99 ;;
-    [Nn]|[Nn][Oo]|[Oo][Ff][Ff]|[Ff][Aa][Ll][Ss][Ee]) ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_WARN" ;;
+    [Yy]|[Yy][Ee][Ss]|[Oo][Nn]|[Tt][Rr][Uu][Ee])
+        ZONEMGR_DEBUG=99 ;;
+    [Nn]|[Nn][Oo]|[Oo][Ff][Ff]|[Ff][Aa][Ll][Ss][Ee])
+        ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_WARN" ;;
 esac
-[ "$ZONEMGR_DEBUG" -ge -1 ] 2>/dev/null || ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_INFO"
-[ "$ZONEMGR_DEBUG" -ge -1 ] 2>/dev/null || ZONEMGR_DEBUG=3
+[ "$ZONEMGR_DEBUG" -ge -1 ] 2>/dev/null \
+    || ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_INFO"
+[ "$ZONEMGR_DEBUG" -ge -1 ] 2>/dev/null \
+    || ZONEMGR_DEBUG=3
 
 ### This is prefixed before ERROR, WARN, INFO tags in the logged messages
 [ -z "$LOGMSG_PREFIX" ] && LOGMSG_PREFIX="ZONEMGR-"
@@ -219,10 +223,10 @@ tee_stderr() {
 
 # This value can be set, at least in bash, to specify at which location
 # the caller of DIE was in the scripts
-SCRIPTLIB_DIE_FILENAME=""       # Which (maybe included) file caused the failure
-SCRIPTLIB_DIE_FUNCNAME=""       # Which function failed, maybe main(), source() etc
-SCRIPTLIB_DIE_LINENO=0          # Which line in the file (or function) failed?
-SCRIPTLIB_DIE_SUBSHELL=-1       # Depth of automatic subshelling "()" "``" "$()"...
+SCRIPTLIB_DIE_FILENAME=""   # Which (maybe included) file caused the failure
+SCRIPTLIB_DIE_FUNCNAME=""   # Which function failed, maybe main(), source() etc
+SCRIPTLIB_DIE_LINENO=0      # Which line in the file (or function) failed?
+SCRIPTLIB_DIE_SUBSHELL=-1   # Depth of automatic subshelling "()" "``" "$()"...
 # These are inherited from caller in any shell:
 SCRIPTLIB_DIE_SCRIPT_PATH=""
 SCRIPTLIB_DIE_SCRIPT_NAME=""
@@ -261,7 +265,8 @@ die() {
         # Definitions of LINENO vary greatly from shell to shell
         # In practice must be >= 1 if defined at all
         SCRIPTLIB_DIE_LINENO="${LINENO-}"
-        [ "$SCRIPTLIB_DIE_LINENO" -ge 1 ] 2>/dev/null || SCRIPTLIB_DIE_LINENO=0
+        [ "$SCRIPTLIB_DIE_LINENO" -ge 1 ] 2>/dev/null \
+            || SCRIPTLIB_DIE_LINENO=0
         SCRIPTLIB_DIE_FILENAME="${SCRIPTLIB_DIE_SCRIPT_NAME}"
         SCRIPTLIB_DIE_FUNCNAME=""
         SCRIPTLIB_DIE_SUBSHELL=-1
@@ -317,17 +322,20 @@ if [ "${ERRSIGNAL-}" = "ERR" ] || [ "${ERRSIGNAL-}" = "SIGERR" ]; then
     set -o | egrep -i "^errexit.*off$" >/dev/null && ERRIGNORE=yes
 fi
 if [ "${ERRIGNORE-}" = no ]; then
-  if [ -n "${SCRIPTLIB_DIE_ERRCODE-}" ] && [ "${SCRIPTLIB_DIE_ERRCODE-}" -ge 0 ] 2>/dev/null; then
+  if [ -n "${SCRIPTLIB_DIE_ERRCODE-}" ] && \
+     [ "${SCRIPTLIB_DIE_ERRCODE-}" -ge 0 ] 2>/dev/null; then
     ERRFILE="$SCRIPTLIB_DIE_FILENAME"
     ERRFUNC="$SCRIPTLIB_DIE_FUNCNAME"
     ERRLINE="$SCRIPTLIB_DIE_LINENO"
     ERRCODE="$SCRIPTLIB_DIE_ERRCODE"
   else
     SCRIPTLIB_DIE_ERRCODE=""
-    [ -n "${LINENO-}" ] && [ "${LINENO-}" -gt 0 ] 2>/dev/null && ERRLINE="${LINENO-}" || ERRLINE=""
+    [ -n "${LINENO-}" ] && [ "${LINENO-}" -gt 0 ] 2>/dev/null \
+        && ERRLINE="${LINENO-}" || ERRLINE=""
     ERRFILE="${_SCRIPT_NAME-}"; ERRFUNC=""
     if [ -n "${BASH-}" ] 2>/dev/null; then
-        [ -n "${FUNCNAME-}" -o -n "${FUNCNAME[0]-}" ] && ERRFUNC="${FUNCNAME[0]-}" || ERRFUNC=""
+        [ -n "${FUNCNAME-}" -o -n "${FUNCNAME[0]-}" ] \
+            && ERRFUNC="${FUNCNAME[0]-}" || ERRFUNC=""
         ERRLINE="${BASH_LINENO[0]-}" && [ -n "$ERRLINE" ] || ERRLINE=0
         [ "$ERRLINE" -eq 0 ] && ERRLINE="${LINENO-}"
         [ -n "$ERRLINE" ] && [ "$ERRLINE" -gt 1 ] || ERRLINE=""
@@ -335,7 +343,8 @@ if [ "${ERRIGNORE-}" = no ]; then
     fi
   fi
   ERRPOS="${ERRFILE-}${ERRLINE:+:$ERRLINE}${ERRFUNC:+ :: $ERRFUNC()}"
-  [ "`basename "${_SCRIPT_NAME-}"`" = "`basename "${ERRFILE-}"`" ] || ERRPOS="${_SCRIPT_NAME-} => ${ERRPOS-}"
+  [ "`basename "${_SCRIPT_NAME-}"`" = "`basename "${ERRFILE-}"`" ] \
+    || ERRPOS="${_SCRIPT_NAME-} => ${ERRPOS-}"
   ERRTEXT="script (${ERRPOS-}) due to trapped signal (${ERRSIGNAL-}) with exit-code (${ERRCODE-})"
   [ -n "${SCRIPTLIB_DIE_ERRCODE-}" ] && ERRTEXT="${ERRTEXT-}, using die()"
   { (settraps_exit_clear; exit ${ERRCODE-} 2>/dev/null 2>&1); '"$ERRHANDLER"' } ;
@@ -696,7 +705,9 @@ parse_config_startup() {
 
     DO_PRINT_CONFIG=0
     parse_config_args "$@"
-    if [ "$DO_PRINT_CONFIG" = 1 ] || [ "$ZONEMGR_DEBUGLEVEL" -gt "$ZONEMGR_DEBUGLEVEL_INFO" ]; then
+    if [ "$DO_PRINT_CONFIG" = 1 ] || \
+       [ "$ZONEMGR_DEBUGLEVEL" -gt "$ZONEMGR_DEBUGLEVEL_INFO" ] \
+    ; then
         print_config
     fi
 
@@ -975,7 +986,8 @@ EOF
 zonecfg_snippet_auto_vnics() {
     VNICS=""
     for LVM in $AUTO_VNICS ; do
-        NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] || die "Failed to create VNIC by spec: $LVM"
+        NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] \
+            || die "Failed to create VNIC by spec: $LVM"
         VNICS="$VNICS $NEWVNIC"
         zonecfg_snippet_assign_nic "$NEWVNIC"
     done
@@ -1064,7 +1076,9 @@ list_zones_managed_diz() {
 }
 
 list_zones_managed_all() {
-    zoneadm list -cv | egrep " ($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" | awk '{print $2}'
+    zoneadm list -cv | \
+        egrep " ($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" | \
+        awk '{print $2}'
 }
 
 # Iterate all golden-image zones to upgrade them (e.g. from crontab)
@@ -1103,7 +1117,7 @@ generate_zonecfg_snippets() {
 
 generate_zonecfg_script() {
     ZONECFG_SCRIPT="$(generate_zonecfg_snippets)" && [ -n "$ZONECFG_SCRIPT" ] \
-    || die "Could not generate ZONECFG_SCRIPT"
+        || die "Could not generate ZONECFG_SCRIPT"
 }
 
 # Snapshot a zone
@@ -1120,11 +1134,13 @@ snapshot_zone() {
 install_zone() {
     [ -n "$TARGET_ZONE" ] || TARGET_ZONE="$(generate_zonename)"
     generate_zonecfg_script
-    echo "$ZONECFG_SCRIPT" | zonecfg -z "${TARGET_ZONE}" || die "Could not configure zone '$TARGET_ZONE' with this script:" "$ZONECFG_SCRIPT"
+    echo "$ZONECFG_SCRIPT" | zonecfg -z "${TARGET_ZONE}" \
+        || die "Could not configure zone '$TARGET_ZONE' with this script:" "$ZONECFG_SCRIPT"
     # TBD: Older Solarises - precreate zoneroot dataset?
     # TBD: Use args to template+brand based install to specify publishers
     # and packages, or just install + later revise?
-    zoneadm -z "${TARGET_ZONE}" install || die "Could not install zone '$TARGET_ZONE'"
+    zoneadm -z "${TARGET_ZONE}" install \
+        || die "Could not install zone '$TARGET_ZONE'"
     # Add pkgs/pubs?
     setup_zone_postinstall
     snapshot_zone "${TARGET_ZONE}" "initial-install"
@@ -1224,14 +1240,17 @@ parse_config_startup "$@"
 
 create_dataset_containment_GIZ
 DATASET_CONTAINMENT_GIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_GIZ")"
-[ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
+[ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
+    || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
 
 create_dataset_containment_DIZ
 DATASET_CONTAINMENT_DIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_DIZ")"
-[ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
+[ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
+    || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
 
 case "$ACTION" in
     *) echo "Would do ACTION='$ACTION'" ;;
 esac
 
 :
+
