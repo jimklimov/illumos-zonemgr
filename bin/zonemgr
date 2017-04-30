@@ -1119,6 +1119,20 @@ list_zones_managed_all() {
         awk '{print $2}'
 }
 
+# TODO: Expose via CLI? Or does it suffice to list*above|grep ?
+is_managed_zone() {
+    # Returns TRUE if the zonepath of "$1" is under GIZ or DIZ container
+    zoneadm -z "$1" list -p 2>/dev/null | \
+        awk -F: '{print $4} ' | \
+        egrep "^($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" >/dev/null
+}
+
+check_is_managed_zone() {
+    if ! is_managed_zone "$@" ; then
+        die "Can not confirm that zone '$*' can be managed by this script"
+    fi
+}
+
 # Iterate all golden-image zones to upgrade them (e.g. from crontab)
 # We can upgrade other zones (e.g. DIZ) but on a case-by-case basis
 # (e.g. an explicit request to test the updateability), not wholesale
@@ -1299,6 +1313,7 @@ DATASET_CONTAINMENT_DIZ_MPT="$(zfs list -H -o mountpoint "$DATASET_CONTAINMENT_D
 df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null \
     || die "Not mounted: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
 
+# Remember to use check_is_managed_zone() before acting on existing zones
 case "$ACTION" in
     *) echo "Would do ACTION='$ACTION'" ;;
 esac
