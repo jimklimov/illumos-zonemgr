@@ -239,13 +239,15 @@ SCRIPTLIB_DIE_ERRCODE=-1
 die() {
     # The exit CODE can be passed as a variable, or as the first parameter
     # (if it is a number), both ways can be used for legacy reasons
-    CODE="${CODE-1}"
-    if [ "$1" -ge 0 ] 2>/dev/null; then
+    _EXIT_CODE_PREV=$?
+    #CODE="${CODE-1}"
+    if [ "${1-}" -ge 0 ] 2>/dev/null; then
         CODE="$1"
         shift
     else
         if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
     fi
+    [ "$CODE" -ge 0 ] 2>/dev/null || CODE="${_EXIT_CODE_PREV}"
     [ "$CODE" -ge 0 ] 2>/dev/null || CODE=1
 
     for LINE in "$@" ; do
@@ -290,10 +292,22 @@ settraps_exit_clear() {
 
 clean_exit() {
     _EXIT_CODE_PREV=$?
-    _EXIT_CODE_ARG="${1-}"
-    [ -n "${_EXIT_CODE_ARG}" ] && _EXIT_CODE="${_EXIT_CODE_ARG}" || _EXIT_CODE="${_EXIT_CODE_PREV}"
+    if [ "${1-}" -ge 0 ] 2>/dev/null; then
+        CODE="$1"
+        shift
+    else
+        if [ x"$1" = x"" ] && [ $# -gt 0 ]; then shift; fi
+    fi
+    [ "$CODE" -ge 0 ] 2>/dev/null || CODE="${_EXIT_CODE_PREV}"
+    [ "$CODE" -ge 0 ] 2>/dev/null || CODE=1
+
     settraps_exit_clear
-    exit $_EXIT_CODE
+
+    for LINE in "$@" ; do
+        echo_E "${LOGMSG_PREFIX-}FATAL: ${_SCRIPT_PATH-}:" "$LINE" >&2
+    done
+
+    exit $CODE
 }
 
 settraps_nonfatal() {
