@@ -540,6 +540,8 @@ Actions: the last specified action is performed (so please only call one).
     exec                Using an existing zone, runs a command in it (boots
             it up if needed - and halts afterwards in this case)
     list|list-diz|list-giz    List zones managed by this script
+    is-managed|is-diz|is-giz NAME       Query if the named zonename is managed
+            by this script
     destroy             Uninstall and unconfigure the specified zone, and
             destroy any automatically created VNICs
     start|boot          Boot the specified zone and wait for multi-user-server
@@ -671,6 +673,15 @@ parse_config_args() {
                 ;;
             create-giz|create-diz|list|list-giz|list-diz|destroy|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
             list-all) ACTION="list" ;;
+            is-managed|is-managed-all|is-managed-any) ACTION="is-managed-any"
+                TARGET_ZONE="$2" ; shift
+                ;;
+            is-diz|is-managed-diz) ACTION="is-managed-diz"
+                TARGET_ZONE="$2" ; shift
+                ;;
+            is-giz|is-managed-giz) ACTION="is-managed-giz"
+                TARGET_ZONE="$2" ; shift
+                ;;
             exec-diz|run-diz) ACTION="exec-diz"
                 [ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="always"
                 [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
@@ -1123,7 +1134,6 @@ list_zones_managed_all() {
         awk '{print $2}'
 }
 
-# TODO: Expose via CLI? Or does it suffice to list*above|grep ?
 is_managed_zone() {
     # Returns TRUE if the zonepath of "$1" is under GIZ or DIZ container
     zoneadm -z "$1" list -p 2>/dev/null | \
@@ -1135,6 +1145,18 @@ check_is_managed_zone() {
     if ! is_managed_zone "$@" ; then
         die "Can not confirm that zone '$*' can be managed by this script"
     fi
+}
+
+is_managed_zone_diz() {
+    zoneadm -z "$1" list -p 2>/dev/null | \
+        awk -F: '{print $4} ' | \
+        egrep "^($DATASET_CONTAINMENT_DIZ_MPT)/" >/dev/null
+}
+
+is_managed_zone_giz() {
+    zoneadm -z "$1" list -p 2>/dev/null | \
+        awk -F: '{print $4} ' | \
+        egrep "^($DATASET_CONTAINMENT_GIZ_MPT)/" >/dev/null
 }
 
 # Iterate all golden-image zones to upgrade them (e.g. from crontab)
@@ -1331,6 +1353,30 @@ case "$ACTION" in
     list-diz)
         logmsg_info "Listing DIZ managed zones..."
         list_zones_managed_diz || exit ;;
+    is-managed-any)
+        if is_managed_zone "$TARGET_ZONE" ; then
+            logmsg_info "Zone '$TARGET_ZONE' exists and is manageable by this script"
+        else
+            logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script"
+            exit 1
+        fi
+        ;;
+    is-managed-diz)
+        if is_managed_zone_diz "$TARGET_ZONE" ; then
+            logmsg_info "Zone '$TARGET_ZONE' exists and is a DIZ manageable by this script"
+        else
+            logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a DIZ"
+            exit 1
+        fi
+        ;;
+    is-managed-giz)
+        if is_managed_zone_giz "$TARGET_ZONE" ; then
+            logmsg_info "Zone '$TARGET_ZONE' exists and is a GIZ manageable by this script"
+        else
+            logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a GIZ"
+            exit 1
+        fi
+        ;;
 #   destroy)
 #   pkg-refresh)
 #   pkg-upgrade)
