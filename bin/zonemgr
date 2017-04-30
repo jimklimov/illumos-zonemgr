@@ -620,7 +620,7 @@ parse_config_args() {
             --print-config) DO_PRINT_CONFIG=1 ;;
             -d|--debug) ZONEMGR_DEBUGLEVEL_INFO="$2"; shift ;;
             -O|--outfile) OUTFILE="$2"; shift ;;
-            -n|--dryrun|--dry-run) ELEVATE_CMD="echo $ELEVATE_CMD" ;;
+            -n|--dryrun|--dry-run) ELEVATE_CMD="echo === DRY-RUN: $ELEVATE_CMD" ;;
             -t|--template) TEMPLATE_GIZ="$2"; shift ;;
             -b|--brand) BRAND_GIZ="$2"; shift ;;
             -c|--clone|--origin) ORIGIN_GIZ="$2"; shift; [ -n "$ACTION" ] || ACTION="create" ;;
