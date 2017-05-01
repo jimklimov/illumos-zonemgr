@@ -1304,6 +1304,22 @@ restart_zone() {
     TBD
 }
 
+reboot_zone() {
+    TBD
+}
+
+ready_zone() {
+    TBD
+}
+
+mount_zone() {
+    TBD
+}
+
+unmount_zone() {
+    TBD
+}
+
 # Destroy a zone (including config, delegated datasets, zoneroot and VNICs)
 destroy_zone() {
     TBD
@@ -1411,7 +1427,8 @@ case "$ACTION" in
 #   pkg-install)
 #   pkg-uninstall)
 #   exec-diz)
-    boot|halt|reboot|ready|mount|unmount)
+    boot|halt|reboot|restart|ready|mount|unmount)
+        # TODO: Move to routines defined for each such action above
         [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
         check_is_managed_zone "$TARGET_ZONE"
         $ELEVATE_CMD \
