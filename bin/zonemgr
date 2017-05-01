@@ -1217,7 +1217,8 @@ upgrade_zones_giz() {
 # to create an intermediate GIZ to clone more such DIZes).
 # TBD: Store a plaintext list of required packages in a zonecfg attr?
 generate_zonename() {
-    TBD
+    #TBD
+    echo "autozone-${RANDOM}"
 }
 
 generate_zonecfg_snippets() {
