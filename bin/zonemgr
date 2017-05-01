@@ -822,6 +822,10 @@ zfs_dataset_exists() {
     return 1
 }
 
+is_mounted() {
+    mount | grep "$1" > /dev/null
+}
+
 zfs_create_recursive() {
     # Newer "zfs" command is able to create parent datasets; older ones can't.
     # Last arg is assumed to be dataset name; passes other args to the last
@@ -1125,6 +1129,15 @@ end
 EOF
 }
 
+list_assigned_datasets() {
+    local N D
+
+    LANG=C LC_ALL=C \
+    zonecfg -z "$1" "info dataset" | while read N D ; do
+        [ "$N" = "name:" ] && echo "$D"
+    done
+}
+
 zonecfg_snippet_assign_lofs() {
     local HOSTDIR="$1"
     local ZONEDIR="$2"
@@ -1296,11 +1309,46 @@ snapshot_zone() {
     local ZONENAME="$1"
     local SNAPCOMMENT="$2"
     logmsg_info "Snapshotting zone '${ZONENAME}'@'${SNAPCOMMENT}'"
-    TBD
+    check_is_managed_zone "$ZONENAME" || return
+
+    local WAS_MOUNTED
+    local WAS_RUNNING="`get_zone_state "$ZONENAME"`"
+
+    # Stop zone? (option? - note zone for cloning must be stopped per docs)
+    if [ "$WAS_RUNNING" = running ]; then
+        stop_zone "${ZONENAME}"
+    fi
+
     # Export zonecfg and/or XML into zoneroot container dataset?
-    # Stop zone? (option?)
+    local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
+    local ZONEROOT_DS="`zfs_getDSbyMPT "${ZONEROOT_MPT}"`" || return
+
+    if is_mounted "$ZONEROOT_MPT" ; then
+        WAS_MOUNTED=yes
+    else
+        $ELEVATE_CMD zfs mount "$ZONEROOT_MPT"
+        WAS_MOUNTED=no
+    fi
+    if is_mounted "$ZONEROOT_MPT" ; then
+        $ELEVATE_CMD zoneadm -z "$ZONENAME" detach -n > "$ZONEROOT_MPT/$ZONENAME.xml"
+    fi
+    if [ "$WAS_MOUNTED" = no ]; then
+        $ELEVATE_CMD zfs umount "$ZONEROOT_MPT"
+    fi
+
     # Snapshot zoneroot container dataset + delegated datasets
+    local D SNAP_RES
+    SNAP_RES=0
+    for D in "$ZONEROOT_DS" `list_assigned_datasets ${ZONENAME}` ; do
+        zfs list "$D@$SNAPCOMMENT" > /dev/null 2>&1 || \
+        zfs snapshot -r "$D@$SNAPCOMMENT" || SNAP_RES=$?
+    done
+
     # Restart zone? (if was stopped by us)
+    if [ "$WAS_RUNNING" = running ]; then
+        start_zone "${ZONENAME}"
+    fi
+    return $SNAP_RES
 }
 
 verify_zone() {
