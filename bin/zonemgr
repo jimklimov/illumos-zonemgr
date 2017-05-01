@@ -1166,8 +1166,10 @@ is_managed_zone() {
 }
 
 check_is_managed_zone() {
+    [ -n "$1" ] || { logmsg_error "No zone specified, while asked to inspect it" ; return 1; }
     if ! is_managed_zone "$@" ; then
-        die "Can not confirm that zone '$*' can be managed by this script"
+        logmsg_error "Can not confirm that zone '$*' can be managed by this script"
+        return 1
     fi
 }
 
@@ -1296,10 +1298,7 @@ install_packages() {
 zone_action() {
     if [ "$#" = 2 ] ; then
         [ -n "$2" ] || die "No zone specified, while required for action '$1'"
-        if ! is_managed_zone "$2" ; then
-            logmsg_error "Can not confirm that zone '$2' can be managed by this script"
-            return 1
-        fi
+        check_is_managed_zone "$2" || return
         case "$1" in
             boot|halt|poweroff|reboot|ready|mount|unmount)
                 $ELEVATE_CMD \
