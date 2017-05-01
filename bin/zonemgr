@@ -505,6 +505,7 @@ Options: if conflicting options are specified, then the last one wins
             parsing any subsequent command-line options
     --print-config      Show active configuration after parsing CLI args
     -d|--debug LEVEL    Set debugging level to the specified value
+    -q|-Q               Set debug to warning+error (-q) or only error (-Q)
     -O|--outfile NAME   Write results of the work into the output file,
             e.g. record the created (generated) zone name there
     -n|--dry-run        Do not create/destroy/change datasets and zones,
@@ -654,6 +655,8 @@ parse_config_args() {
                 shift
                 ;;
             --print-config) DO_PRINT_CONFIG=1 ;;
+            -q) ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_WARN" ;;
+            -Q) ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_ERROR" ;;
             -d|--debug)
                 if [ "$2" -ge -1 ] 2>/dev/null ; then
                     ZONEMGR_DEBUG="$2"
@@ -1501,7 +1504,7 @@ start_zone() {
     boot_zone "$1" || \
         { RES=$? ; logmsg_error "Zone '$1' did not boot" ; return $RES; }
 
-    zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -vi 'CONFIGURED|INCOMPLETE' || \
+    zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null || \
         { RES=$? ; logmsg_error "Zone '$1' not running after trying to start it" ; return $RES; }
 
     # TODO: Possibility for infinite loop if something hangs inside the zone
@@ -1512,7 +1515,7 @@ start_zone() {
         $ELEVATE_CMD zlogin -S "$1" 'svcadm enable -ts svc:/milestone/multi-user-server:default' \
             && return 0
         sleep 3
-        zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -i 'INSTALLED' && \
+        zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -i 'INSTALLED' >/dev/null && \
             { RES=$? ; logmsg_error "Zone '$1' died after startup" ; return $RES; }
     done
     return $RES
@@ -1661,7 +1664,7 @@ create_dataset_containment_GIZ
 DATASET_CONTAINMENT_GIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_GIZ")" \
     && [ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
     || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
-df -k "$DATASET_CONTAINMENT_GIZ_MPT" 2>/dev/null \
+df -k "$DATASET_CONTAINMENT_GIZ_MPT" 2>/dev/null >/dev/null \
     || die "Not mounted: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
 
 logmsg_info "Ensuring availability of container dataset for DIZes"
@@ -1669,7 +1672,7 @@ create_dataset_containment_DIZ
 DATASET_CONTAINMENT_DIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_DIZ")" \
     && [ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
     || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
-df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null \
+df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null >/dev/null \
     || die "Not mounted: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
 
 # Remember to use check_is_managed_zone() before acting on existing zones
