@@ -1392,7 +1392,10 @@ destroy_zone() {
     done
 }
 
-# Halt and roll back to specified snapshot (e.g. reuse same)
+# Halt and roll back to specified or most-recent snapshot (e.g. reuse same
+# blank zone content for another job). Note that technically the most-recent
+# snapshot may be that of a most-recent GZ OS update, not of the stable state
+# after last zone install/update as may be intended by sysadmin.
 rollback_zone() {
     TBD
 }
