@@ -1273,11 +1273,20 @@ snapshot_zone() {
     # Restart zone? (if was stopped by us)
 }
 
+verify_zone() {
+    [ -n "${1-}" ] || \
+        { logmsg_error "No zone specified, while asked to inspect it" ; return 1; }
+    $ELEVATE_CMD zoneadm -z "$1" verify || \
+        { clean_exit "Could not verify configuration of zone '$1'" ; return 1; }
+    check_is_managed_zone "$1"
+}
+
 install_zone() {
     [ -n "$TARGET_ZONE" ] || TARGET_ZONE="$(generate_zonename)"
     generate_zonecfg_script
     echo "$ZONECFG_SCRIPT" | $ELEVATE_CMD zonecfg -z "${TARGET_ZONE}" \
         || die "Could not configure zone '$TARGET_ZONE' with this script:" "$ZONECFG_SCRIPT"
+    verify_zone "${TARGET_ZONE}"
     # TBD: Older Solarises - precreate zoneroot dataset?
     # TBD: Use args to template+brand based install to specify publishers
     # and packages, or just install + later revise?
