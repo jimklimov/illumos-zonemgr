@@ -701,16 +701,28 @@ parse_config_args() {
             create-giz|create-diz|list|list-giz|list-diz|destroy|snapshot|rollback|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
             list-all) ACTION="list" ;;
             is-managed|is-managed-all|is-managed-any) ACTION="is-managed-any"
-                TARGET_ZONE="$2" ; shift
+                case "$2" in
+                    -*) ;;
+                    *)  TARGET_ZONE="$2" ; shift ;;
+                esac
                 ;;
             is-diz|is-managed-diz) ACTION="is-managed-diz"
-                TARGET_ZONE="$2" ; shift
+                case "$2" in
+                    -*) ;;
+                    *)  TARGET_ZONE="$2" ; shift ;;
+                esac
                 ;;
             is-giz|is-managed-giz) ACTION="is-managed-giz"
-                TARGET_ZONE="$2" ; shift
+                case "$2" in
+                    -*) ;;
+                    *)  TARGET_ZONE="$2" ; shift ;;
+                esac
                 ;;
             verify|validate) ACTION="verify"
-                TARGET_ZONE="$2" ; shift
+                case "$2" in
+                    -*) ;;
+                    *)  TARGET_ZONE="$2" ; shift ;;
+                esac
                 ;;
             exec-diz|run-diz) ACTION="exec-diz"
                 [ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="always"
