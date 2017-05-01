@@ -1625,9 +1625,35 @@ unmount_zone() {
 
 # Destroy a zone (including config, delegated datasets, zoneroot and VNICs)
 destroy_zone() {
-    TBD
-    for V in list_auto_vnics_zonecfg "${TARGET_ZONE}" ; do
+    local ZONENAME="$1"
+    check_is_managed_zone "$ZONENAME" || return $?
+
+    local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
+    local ZONEROOT_DS="`zfs_getDSbyMPT "${ZONEROOT_MPT}"`" || return
+    local DELEGATED_DATASETS="`list_assigned_datasets ${ZONENAME}`"
+    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
+
+    stop_zone "$ZONENAME"
+
+    logmsg_info "Uninstalling zone '$ZONENAME'..."
+    $ELEVATE_CMD zoneadm -z "$ZONENAME" uninstall -F
+    logmsg_info "Removing configuration of zone '$ZONENAME'..."
+    $ELEVATE_CMD zonecfg -z "$ZONENAME" delete -F
+
+    [ -n "$DELEGATED_VNICS" ] && \
+    logmsg_info "Removing auto-VNICs: $DELEGATED_VNICS" && \
+    for V in $DELEGATED_VNICS ; do
         delete_vnic "$V"
+    done
+
+    local D
+    for D in "$ZONEROOT_DS" $DELEGATED_DATASETS ; do
+        if zfs_dataset_exists "$D" ; then
+            # NOTE: For now leave this a message, not an automatic action
+            # TBD: How does this influence clones etc.?
+            # Should they be promoted first?
+            logmsg_info "You may want to:  $ELEVATE_CMD zfs destroy -r $D"
+        fi
     done
 }
 
@@ -1790,7 +1816,10 @@ case "$ACTION" in
             clean_exit 1
         fi
         ;;
-#   destroy)    check_is_managed_zone "$TARGET_ZONE" || die
+    destroy)
+        check_is_managed_zone "$TARGET_ZONE" || die
+        destroy_zone "$TARGET_ZONE"
+        ;;
 #   snapshot)
 #   rollback)
 #   pkg-refresh)
