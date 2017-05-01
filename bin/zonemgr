@@ -709,6 +709,7 @@ parse_config_args() {
                 [ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="always"
                 [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
                 ;;
+            # exec|run) TBD ;;
             start|boot) ACTION="boot" ;;
             stop|halt|poweroff|shutdown|restart) ACTION="$1" ;;
             reboot|reset) ACTION="reboot" ;;
@@ -1474,12 +1475,15 @@ case "$ACTION" in
             clean_exit 1
         fi
         ;;
-#   destroy)
+#   destroy)    check_is_managed_zone "$TARGET_ZONE" || die
+#   snapshot)
+#   rollback)
 #   pkg-refresh)
 #   pkg-upgrade)
 #   pkg-install)
 #   pkg-uninstall)
-#   exec-diz)
+    exec-diz)
+        diz_run ;;
     boot|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
         eval "$ACTION"_zone "$TARGET_ZONE" \
             || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
