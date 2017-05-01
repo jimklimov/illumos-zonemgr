@@ -513,6 +513,8 @@ Options: if conflicting options are specified, then the last one wins
     -t|--template NAME  Use this OS-defined template to create a new GIZ
     -b|--brand NAME     Record this brand in the zone attributes
     -c|--clone|--origin NAME    The origin GIZ for cloning into new GIZ or DIZ
+    -s|--snapshot NAME  The snapshot to take from target or use from origin
+            or rollback to on target
     -z|--zone NAME      Target zone to create or otherwise manage
     -Z|--zone-autoname  Generate name for the zone as a hash of requested
             package names. When asked to create-diz or exec-diz,
@@ -620,6 +622,9 @@ BRAND_GIZ="ipkg"
 ORIGIN_GIZ=""
 # Which zone will we manage with this command?
 TARGET_ZONE=""
+# Which snapshot name will we take of target zone, or clone off origin zone,
+# or rollback to?
+SNAP_NAME=""
 
 ADD_PUBLISHERS=""
 DEL_PUBLISHERS=""
@@ -671,6 +676,7 @@ parse_config_args() {
             -t|--template) TEMPLATE_GIZ="$2"; shift ;;
             -b|--brand) BRAND_GIZ="$2"; shift ;;
             -c|--clone|--origin) ORIGIN_GIZ="$2"; shift; [ -n "$ACTION" ] || ACTION="create-diz" ;;
+            -s|--snapshot|--snapname) SNAP_NAME="$2"; shift ;;
             -z|--zone) TARGET_ZONE="$2"; shift ;;
             -Z|--zone-autoname) TARGET_ZONE='{auto}' ;;
             -p|--add-packages|--install-packages|--add-package|--install-package)
@@ -1398,6 +1404,11 @@ generate_zonecfg_script() {
 snapshot_zone() {
     local ZONENAME="$1"
     local SNAPCOMMENT="$2"
+    if [ -z "$SNAPCOMMENT" ] ; then
+        SNAPCOMMENT="autozone-`date +%Y%m%dT%H%M%SZ`" || \
+            SNAPCOMMENT="autozone-$$"
+    fi
+
     logmsg_info "Snapshotting zone '${ZONENAME}'@'${SNAPCOMMENT}'"
     check_is_managed_zone "$ZONENAME" || return
 
@@ -1820,7 +1831,10 @@ case "$ACTION" in
         check_is_managed_zone "$TARGET_ZONE" || die
         destroy_zone "$TARGET_ZONE"
         ;;
-#   snapshot)
+    snapshot)
+        check_is_managed_zone "$TARGET_ZONE" || die
+        snapshot_zone "$TARGET_ZONE" "$SNAP_NAME"
+        ;;
 #   rollback)
 #   pkg-refresh)
 #   pkg-upgrade)
