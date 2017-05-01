@@ -1497,8 +1497,25 @@ boot_zone() {
 }
 
 start_zone() {
-    boot_zone "$1"
-    TBD "wait for multi-user-server milestone to get reached"
+    local RES=0
+    boot_zone "$1" || \
+        { RES=$? ; logmsg_error "Zone '$1' did not boot" ; return $RES; }
+
+    zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -vi 'CONFIGURED|INCOMPLETE' || \
+        { RES=$? ; logmsg_error "Zone '$1' not running after trying to start it" ; return $RES; }
+
+    # TODO: Possibility for infinite loop if something hangs inside the zone
+    # See https://github.com/jimklimov/illumos-smf-zones for more of this logic
+    logmsg_info "Waiting for multi-user-server milestone to get reached in zone '$1'..."
+    sleep 5
+    while : ; do
+        $ELEVATE_CMD zlogin -S "$1" 'svcadm enable -ts svc:/milestone/multi-user-server:default' \
+            && return 0
+        sleep 3
+        zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -i 'INSTALLED' && \
+            { RES=$? ; logmsg_error "Zone '$1' died after startup" ; return $RES; }
+    done
+    return $RES
 }
 
 halt_zone() {
