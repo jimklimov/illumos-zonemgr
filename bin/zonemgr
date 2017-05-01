@@ -665,7 +665,7 @@ parse_config_args() {
             -n|--dryrun|--dry-run) ELEVATE_CMD="echo === DRY-RUN: $ELEVATE_CMD" ;;
             -t|--template) TEMPLATE_GIZ="$2"; shift ;;
             -b|--brand) BRAND_GIZ="$2"; shift ;;
-            -c|--clone|--origin) ORIGIN_GIZ="$2"; shift; [ -n "$ACTION" ] || ACTION="create" ;;
+            -c|--clone|--origin) ORIGIN_GIZ="$2"; shift; [ -n "$ACTION" ] || ACTION="create-diz" ;;
             -z|--zone) TARGET_ZONE="$2"; shift ;;
             -Z|--zone-autoname) TARGET_ZONE='{auto}' ;;
             -p|--add-packages|--install-packages|--add-package|--install-package)
@@ -1503,9 +1503,11 @@ df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null \
 
 # Remember to use check_is_managed_zone() before acting on existing zones
 case "$ACTION" in
-#   create-giz)
-#   create-diz)
-#   create)
+    create-giz)
+        install_zone ;;
+    create-diz)
+        # Would first create a matching GIZ if missing
+        clone_zone ;;
     list)
         logmsg_info "Listing all managed zones..."
         list_zones_managed_all || clean_exit "No such zones were found" ;;
