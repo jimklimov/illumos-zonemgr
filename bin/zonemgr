@@ -519,7 +519,7 @@ Options: if conflicting options are specified, then the last one wins
             a suitable source GIZ (maybe starting as a clone of
             specified origin, or from template)
     --exec-cmd SCRIPT   Execute the command in the zone via zlogin
-    --exec-user NAME    ...as the specified LZ-defined user account
+    --exec-user NAME    ...as the specified LZ-defined user account (or -S)
     --exec-discard off|always|onsuccess    Discard the zone after running the
             command? Defaults to "off" usually, and to "always"
             for "exec-diz" action
