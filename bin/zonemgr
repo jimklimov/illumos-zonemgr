@@ -1168,6 +1168,12 @@ get_zone_root() {
         awk -F: '{print $4} '
 }
 
+get_zone_state() {
+    [ -n "$1" ] && \
+    zoneadm -z "$1" list -p 2>/dev/null | \
+        awk -F: '{print $3} '
+}
+
 is_managed_zone() {
     # Returns TRUE if the zonepath of "$1" is under GIZ or DIZ container
     get_zone_root "$1" | \
@@ -1486,6 +1492,19 @@ case "$ACTION" in
 #   pkg-upgrade)
 #   pkg-install)
 #   pkg-uninstall)
+    exec)
+        check_is_managed_zone "$TARGET_ZONE" || die
+        OLD_ZONE_STATE="`get_zone_state "$TARGET_ZONE"`"
+        if [ "$OLD_ZONE_STATE" != running ] ; then
+            start_zone "$TARGET_ZONE" || die
+        fi
+        RUN_RES=0
+        run_in_zone || RUN_RES=$?
+        if [ "$OLD_ZONE_STATE" != running ] ; then
+            stop_zone "$TARGET_ZONE" || die
+        fi
+        clean_exit $RUN_RES
+        ;;
     exec-diz)
         diz_run ;;
     boot|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
