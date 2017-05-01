@@ -568,7 +568,8 @@ Actions: the last specified action is performed (so please only call one).
             destroy any automatically created VNICs
     start|boot          Boot the specified zone and wait for multi-user-server
             milestone to get reached
-    stop|halt           Halt the specified zone
+    stop|halt|poweroff  Halt or quickly shutdown the specified zone
+    shutdown            Gracefully shutdown the specified zone
     restart|reboot      Reboot the specified zone
     mount|ready|unmount Change FS state of the specified zone filesystems
     pkg-refresh         Fetch the updated packaging metadata
@@ -709,8 +710,8 @@ parse_config_args() {
                 [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
                 ;;
             start|boot) ACTION="boot" ;;
-            stop|halt|poweroff) ACTION="halt" ;;
-            restart|reboot|reset) ACTION="reboot" ;;
+            stop|halt|poweroff|shutdown|restart) ACTION="$1" ;;
+            reboot|reset) ACTION="reboot" ;;
             ready|mount) ACTION="$1" ;;
             unmount|umount) ACTION="unmount" ;;
             *) logmsg_error "Unknown CLI argument: $1" ; exit 1 ;;
@@ -1292,32 +1293,85 @@ install_packages() {
 }
 
 # Start, stop a zone
+zone_action() {
+    if [ "$#" = 2 ] ; then
+        [ -n "$2" ] || die "No zone specified, while required for action '$1'"
+        if ! is_managed_zone "$2" ; then
+            logmsg_error "Can not confirm that zone '$2' can be managed by this script"
+            return 1
+        fi
+        case "$1" in
+            boot|halt|poweroff|reboot|ready|mount|unmount)
+                $ELEVATE_CMD \
+                    zoneadm -z "$2" "$1"
+                return $?
+                ;;
+            poweroff)
+                $ELEVATE_CMD \
+                    zlogin -S "$2" "poweroff"
+                return $?
+                ;;
+            shutdown)
+                $ELEVATE_CMD \
+                    zlogin -S "$2" "init 5" || \
+                $ELEVATE_CMD \
+                    zlogin -S "$2" "shutdown" || \
+                $ELEVATE_CMD \
+                    zoneadm -z "$2" "$1"
+                return $?
+                ;;
+        esac
+    fi
+    logmsg_error "Unsupported action '$1' for zone '$2'"
+    return 1
+}
+
+boot_zone() {
+    zone_action boot "$1"
+}
+
 start_zone() {
-    TBD
+    boot_zone "$1"
+    TBD "wait for multi-user-server milestone to get reached"
+}
+
+halt_zone() {
+    zone_action halt "$1"
+}
+
+poweroff_zone() {
+    zone_action poweroff "$1"
+}
+
+shutdown_zone() {
+    zone_action shutdown "$1"
 }
 
 stop_zone() {
-    TBD
+    shutdown_zone "$1" || \
+    poweroff_zone "$1"
+    halt_zone "$1"
 }
 
 restart_zone() {
-    TBD
+    stop_zone "$1"
+    start_zone "$1"
 }
 
 reboot_zone() {
-    TBD
+    zone_action reboot "$1"
 }
 
 ready_zone() {
-    TBD
+    zone_action ready "$1"
 }
 
 mount_zone() {
-    TBD
+    zone_action mount "$1"
 }
 
 unmount_zone() {
-    TBD
+    zone_action unmount "$1"
 }
 
 # Destroy a zone (including config, delegated datasets, zoneroot and VNICs)
@@ -1427,12 +1481,8 @@ case "$ACTION" in
 #   pkg-install)
 #   pkg-uninstall)
 #   exec-diz)
-    boot|halt|reboot|restart|ready|mount|unmount)
-        # TODO: Move to routines defined for each such action above
-        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
-        check_is_managed_zone "$TARGET_ZONE"
-        $ELEVATE_CMD \
-            zoneadm -z "$TARGET_ZONE" "$ACTION" \
+    boot|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
+        eval "$ACTION"_zone "$TARGET_ZONE" \
             || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
         ;;
     *) echo "Would do ACTION='$ACTION'" ;;
