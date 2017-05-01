@@ -562,9 +562,9 @@ Actions: the last specified action is performed (so please only call one).
     exec                Using an existing zone, runs a command in it (boots
             it up if needed - and halts afterwards in this case)
     list|list-diz|list-giz    List zones managed by this script
-    is-managed|is-diz|is-giz NAME       Query if the named zonename is managed
-            by this script
-    verify NAME         Query if the named zonename has valid manifest and
+    is-managed|is-diz|is-giz (NAME)     Query if the named zonename is managed
+            by this script (name can be passed quickly without -z)
+    verify (NAME)       Query if the named zonename has valid manifest and
             is managed by this script
     destroy             Uninstall and unconfigure the specified zone, and
             destroy any automatically created VNICs
@@ -701,26 +701,30 @@ parse_config_args() {
             create-giz|create-diz|list|list-giz|list-diz|destroy|snapshot|rollback|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
             list-all) ACTION="list" ;;
             is-managed|is-managed-all|is-managed-any) ACTION="is-managed-any"
+                [ -n "$TARGET_ZONE" ] || \
                 case "$2" in
-                    -*) ;;
+                    -*|"") ;;
                     *)  TARGET_ZONE="$2" ; shift ;;
                 esac
                 ;;
             is-diz|is-managed-diz) ACTION="is-managed-diz"
+                [ -n "$TARGET_ZONE" ] || \
                 case "$2" in
-                    -*) ;;
+                    -*|"") ;;
                     *)  TARGET_ZONE="$2" ; shift ;;
                 esac
                 ;;
             is-giz|is-managed-giz) ACTION="is-managed-giz"
+                [ -n "$TARGET_ZONE" ] || \
                 case "$2" in
-                    -*) ;;
+                    -*|"") ;;
                     *)  TARGET_ZONE="$2" ; shift ;;
                 esac
                 ;;
             verify|validate) ACTION="verify"
+                [ -n "$TARGET_ZONE" ] || \
                 case "$2" in
-                    -*) ;;
+                    -*|"") ;;
                     *)  TARGET_ZONE="$2" ; shift ;;
                 esac
                 ;;
