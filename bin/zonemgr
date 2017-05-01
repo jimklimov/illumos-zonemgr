@@ -1399,7 +1399,31 @@ rollback_zone() {
 
 # Run a command inside the zone (via zlogin), maybe as a specified account
 run_in_zone() {
-    TBD
+    if [ -z "${EXEC_CMD}" ]; then
+        logmsg_error "run_in_zone(): nothing requested (EXEC_CMD is empty)"
+        return 255
+    fi
+    check_is_managed_zone "$TARGET_ZONE" || return $?
+
+    ZLOGIN_FLAGS=""
+    case "${EXEC_USER}" in
+        "") ;; # Use default account, e.g. local-zone root
+        -S) ZLOGIN_FLAGS="-S" ;; # Recovery access bypassing logins
+        *)  ZLOGIN_FLAGS="-l ${EXEC_USER}" ;;
+    esac
+
+    logmsg_info "Running '${EXEC_CMD}' as '${EXEC_USER}' in zone '${TARGET_ZONE}'"
+    RUN_RES=0
+    $ELEVATE_CMD \
+        zlogin $ZLOGIN_FLAGS "${TARGET_ZONE}" "${EXEC_CMD}" || RUN_RES=$?
+
+    if [ "$RUN_RES" = 0 ] ; then
+        logmsg_info "SUCCESS: Running '${EXEC_CMD}' as '${EXEC_USER}' in zone '${TARGET_ZONE}'"
+    else
+        logmsg_warn "FAILED ($RUN_RES): Running '${EXEC_CMD}' as '${EXEC_USER}' in zone '${TARGET_ZONE}'"
+    fi
+
+    return $RUN_RES
 }
 
 ############################################################################
