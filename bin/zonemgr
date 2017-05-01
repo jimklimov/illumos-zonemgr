@@ -1314,8 +1314,19 @@ verify_zone() {
 install_zone() {
     [ -n "$TARGET_ZONE" ] || TARGET_ZONE="$(generate_zonename)"
     generate_zonecfg_script
+
+    logmsg_info "Configuring zone '${TARGET_ZONE}' with the following zonecfg script:" \
+        "
+=======
+${ZONECFG_SCRIPT}
+=======
+"
+
     echo "$ZONECFG_SCRIPT" | $ELEVATE_CMD zonecfg -z "${TARGET_ZONE}" \
-        || die "Could not configure zone '$TARGET_ZONE' with this script:" "$ZONECFG_SCRIPT"
+        || die "Could not configure zone '$TARGET_ZONE' with this script:
+=======
+$ZONECFG_SCRIPT
+======="
     verify_zone "${TARGET_ZONE}"
     # TBD: Older Solarises - precreate zoneroot dataset?
     # TBD: Use args to template+brand based install to specify publishers
