@@ -564,6 +564,8 @@ Actions: the last specified action is performed (so please only call one).
     list|list-diz|list-giz    List zones managed by this script
     is-managed|is-diz|is-giz NAME       Query if the named zonename is managed
             by this script
+    verify NAME         Query if the named zonename has valid manifest and
+            is managed by this script
     destroy             Uninstall and unconfigure the specified zone, and
             destroy any automatically created VNICs
     start|boot          Boot the specified zone and wait for multi-user-server
@@ -705,6 +707,9 @@ parse_config_args() {
                 TARGET_ZONE="$2" ; shift
                 ;;
             is-giz|is-managed-giz) ACTION="is-managed-giz"
+                TARGET_ZONE="$2" ; shift
+                ;;
+            verify|validate) ACTION="verify"
                 TARGET_ZONE="$2" ; shift
                 ;;
             exec-diz|run-diz) ACTION="exec-diz"
@@ -1577,6 +1582,15 @@ case "$ACTION" in
             logmsg_info "Zone '$TARGET_ZONE' exists and is a GIZ manageable by this script"
         else
             logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a GIZ"
+            clean_exit 1
+        fi
+        ;;
+    verify)
+        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
+        if verify_zone "$TARGET_ZONE" ; then
+            logmsg_info "Zone '$TARGET_ZONE' exists, has valid manifest and is manageable by this script"
+        else
+            logmsg_warn "Zone '$TARGET_ZONE' does not exist, has broken manifest, or is not manageable by this script"
             clean_exit 1
         fi
         ;;
