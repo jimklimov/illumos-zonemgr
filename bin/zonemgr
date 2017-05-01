@@ -1142,6 +1142,24 @@ list_assigned_datasets() {
     done
 }
 
+secure_zoned_dataset() {
+    zfs_create_recursive "$1" || return
+    $ELEVATE_CMD zfs umount "$1" || \
+        $ELEVATE_CMD umount "$1"
+    $ELEVATE_CMD zfs set canmount=off "$1"
+    $ELEVATE_CMD zfs set mountpoint=legacy "$1"
+    $ELEVATE_CMD zfs set zoned=on "$1"
+}
+
+secure_assigned_datasets() {
+    local DS
+    local RES=0
+    for DS in `list_assigned_datasets "$1"` ; do
+        secure_zoned_dataset "$DS" || RES=$?
+    done
+    return $RES
+}
+
 zonecfg_snippet_assign_lofs() {
     local HOSTDIR="$1"
     local ZONEDIR="$2"
@@ -1443,6 +1461,10 @@ zone_action() {
         check_is_managed_zone "$2" || return
         case "$1" in
             boot|halt|poweroff|reboot|ready|mount|unmount)
+                case "$1" in
+                    boot|reboot|ready|mount)
+                        secure_assigned_datasets "$2" ;;
+                esac
                 $ELEVATE_CMD \
                     zoneadm -z "$2" "$1"
                 return $?
@@ -1691,6 +1713,7 @@ case "$ACTION" in
 #   pkg-uninstall)
     exec)
         check_is_managed_zone "$TARGET_ZONE" || die
+        secure_assigned_datasets "${TARGET_ZONE}"
         OLD_ZONE_STATE="`get_zone_state "$TARGET_ZONE"`"
         if [ "$OLD_ZONE_STATE" != running ] ; then
             start_zone "$TARGET_ZONE" || die
