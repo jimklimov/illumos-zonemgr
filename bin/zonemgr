@@ -1406,8 +1406,30 @@ run_in_zone() {
 # Wrap the single-use zone routine
 ############################################################################
 diz_run() {
-    TBD
     # Create the DIZ, boot it, run the command, halt, destroy (e.g. one build)
+    # Stop gracefully just in case something is saved to external storage?
+    # TODO: Graceful shutdown vs fast halt based on autofs/delegated setup?
+    RUN_RES=255
+    install_zone && \
+    start_zone "$TARGET_ZONE" && \
+    { run_in_zone ; RUN_RES=$?; }
+    STACK_RES=$?
+    if [ "$STACK_RES" = 0 ] && [ "$RUN_RES" != 0 ] ; then
+        STACK_RES="$RUN_RES"
+    fi
+
+    logmsg_info "Exec ended with codes $STACK_RES for the stack and $RUN_RES for the run"
+
+    if [ $STACK_RES = 0 -a "$EXEC_DISCARD" = onsuccess ] || \
+       [ "$EXEC_DISCARD" = always ] ; then
+        logmsg_info "Discarding the zone '$TARGET_ZONE' because exec ended with code $STACK_RES and EXEC_DISCARD='$EXEC_DISCARD'"
+        stop_zone "$TARGET_ZONE"
+        destroy_zone
+    else
+        logmsg_info "Keeping the zone '$TARGET_ZONE' `get_zone_state $TARGET_ZONE 2>/dev/null` because exec ended with code $STACK_RES and EXEC_DISCARD='$EXEC_DISCARD'"
+    fi
+
+    return $RUN_RES
 }
 
 ############################################################################
