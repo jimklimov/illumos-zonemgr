@@ -1144,8 +1144,10 @@ list_assigned_datasets() {
 
 secure_zoned_dataset() {
     zfs_create_recursive "$1" || return
-    $ELEVATE_CMD zfs umount "$1" || \
-        $ELEVATE_CMD umount "$1"
+    if is_mounted "$1" ; then
+        $ELEVATE_CMD zfs umount "$1" || \
+            $ELEVATE_CMD umount "$1"
+    fi
     $ELEVATE_CMD zfs set canmount=off "$1"
     $ELEVATE_CMD zfs set mountpoint=legacy "$1"
     $ELEVATE_CMD zfs set zoned=on "$1"
