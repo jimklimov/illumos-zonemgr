@@ -1257,8 +1257,21 @@ upgrade_zones_giz() {
 # to create an intermediate GIZ to clone more such DIZes).
 # TBD: Store a plaintext list of required packages in a zonecfg attr?
 generate_zonename() {
-    #TBD
-    echo "autozone-${RANDOM}"
+    # TBD : See comment above about hashing the zone name with useful content
+    local EXISTING_ZONES="`zoneadm list -p | awk -F: '{print $2}'`"
+    local TRYNAME
+    local Z
+
+    # NOTE: Infinite loop possible here, if all 99999 random numbers are
+    # already used for this PID number. I guess the server boils sooner.
+    while : ; do
+        TRYNAME="autozone-$$-${RANDOM}"
+        [ -z "$EXISTING_ZONES" ] && break
+        for Z in $EXISTING_ZONES ; do
+            [ "$Z" = "${TRYNAME}" ] && break 2
+        done
+    done
+    echo "$TRYNAME"
 }
 
 generate_zonecfg_snippets() {
