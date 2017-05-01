@@ -1387,6 +1387,9 @@ unmount_zone() {
 # Destroy a zone (including config, delegated datasets, zoneroot and VNICs)
 destroy_zone() {
     TBD
+    for V in list_auto_vnics_zonecfg "${TARGET_ZONE}" ; do
+        delete_vnic "$V"
+    done
 }
 
 # Halt and roll back to specified snapshot (e.g. reuse same)
