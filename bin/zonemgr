@@ -1147,17 +1147,19 @@ setup_ldap() {
 list_zones_managed_giz() {
     # TBD: combine grep and awk when I'd be in illumos (zonepath is $4 IIRC?)
     # and verify zonename is the $2
-    zoneadm list -cv | grep " $DATASET_CONTAINMENT_GIZ_MPT/" | awk '{print $2}'
+    zoneadm list -cp | grep ":$DATASET_CONTAINMENT_GIZ_MPT/" | \
+        awk -F: '{print $2}'
 }
 
 list_zones_managed_diz() {
-    zoneadm list -cv | grep " $DATASET_CONTAINMENT_DIZ_MPT/" | awk '{print $2}'
+    zoneadm list -cp | grep ":$DATASET_CONTAINMENT_DIZ_MPT/" | \
+        awk -F: '{print $2}'
 }
 
 list_zones_managed_all() {
-    zoneadm list -cv | \
-        egrep " ($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" | \
-        awk '{print $2}'
+    zoneadm list -cp | \
+        egrep ":($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" | \
+        awk -F: '{print $2}'
 }
 
 get_zone_root() {
