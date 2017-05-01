@@ -1187,7 +1187,7 @@ clone_user() {
 
 clone_groups() {
     local RES=0
-    for G in $SOMETHING_TBD ; do
+    for G in $COPY_GROUPS ; do
         clone_group "$G" || RES=$?
     done
     return $RES
@@ -1195,7 +1195,7 @@ clone_groups() {
 
 clone_users() {
     local RES=0
-    for U in $SOMETHING_TBD ; do
+    for U in $COPY_USERS ; do
         clone_user "$U" || RES=$?
     done
     return $RES
