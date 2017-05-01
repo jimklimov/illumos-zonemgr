@@ -1160,11 +1160,15 @@ list_zones_managed_all() {
         awk '{print $2}'
 }
 
-is_managed_zone() {
-    # Returns TRUE if the zonepath of "$1" is under GIZ or DIZ container
+get_zone_root() {
     [ -n "$1" ] && \
     zoneadm -z "$1" list -p 2>/dev/null | \
-        awk -F: '{print $4} ' | \
+        awk -F: '{print $4} '
+}
+
+is_managed_zone() {
+    # Returns TRUE if the zonepath of "$1" is under GIZ or DIZ container
+    get_zone_root "$1" | \
         egrep "^($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" >/dev/null
 }
 
@@ -1177,16 +1181,12 @@ check_is_managed_zone() {
 }
 
 is_managed_zone_diz() {
-    [ -n "$1" ] && \
-    zoneadm -z "$1" list -p 2>/dev/null | \
-        awk -F: '{print $4} ' | \
+    get_zone_root "$1" | \
         egrep "^($DATASET_CONTAINMENT_DIZ_MPT)/" >/dev/null
 }
 
 is_managed_zone_giz() {
-    [ -n "$1" ] && \
-    zoneadm -z "$1" list -p 2>/dev/null | \
-        awk -F: '{print $4} ' | \
+    get_zone_root "$1" | \
         egrep "^($DATASET_CONTAINMENT_GIZ_MPT)/" >/dev/null
 }
 
