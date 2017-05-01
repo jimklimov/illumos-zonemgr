@@ -1266,6 +1266,8 @@ install_zone() {
 # Clone a zone (clone current state, last or specified snapshot)
 # This may become a better tuned and flexible solution than "zoneadm clone"
 clone_zone() {
+    # If TARGET_ZONE is not set, generate one
+    # If ORIGIN_ZONE is not set, install it first and then clone it here
     TBD
     # If using existing snapshot, use the stashed copy of that older
     # zone config as template (if differs from current) - create
@@ -1440,7 +1442,7 @@ diz_run() {
     # NOTE: This command does not require TARGET_ZONE to be pre-set, because
     # for single-use it might generate a random name and then discard it.
     DIZ_RUN_RES=255
-    install_zone && \
+    clone_zone && \
     start_zone "$TARGET_ZONE" && \
     { run_in_zone ; DIZ_RUN_RES=$?; }
     STACK_RES=$?
