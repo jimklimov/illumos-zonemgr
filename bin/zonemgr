@@ -688,8 +688,8 @@ parse_config_args() {
                 USE_VNICS="$USE_VNICS $2"; shift ;;
             --add-vnic-over|--use-vnic-over|--add-vnics-over|--use-vnics-over|--auto-vnic|--auto-vnics)
                 AUTO_VNICS="$AUTO_VNICS $2"; shift ;;
-            --exec-cmd) EXEC_CMD="$1" ;;
-            --exec-user) EXEC_USER="$1" ;;
+            --exec-cmd) EXEC_CMD="$2" ;;
+            --exec-user) EXEC_USER="$2" ;;
             --exec-discard)
                 case "$2" in
                     off|always|onsuccess) EXEC_DISCARD="$2"; shift ;;
