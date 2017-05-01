@@ -690,8 +690,8 @@ parse_config_args() {
                 USE_VNICS="$USE_VNICS $2"; shift ;;
             --add-vnic-over|--use-vnic-over|--add-vnics-over|--use-vnics-over|--auto-vnic|--auto-vnics)
                 AUTO_VNICS="$AUTO_VNICS $2"; shift ;;
-            --exec-cmd) EXEC_CMD="$2" ;;
-            --exec-user) EXEC_USER="$2" ;;
+            --exec-cmd) EXEC_CMD="$2" ; shift ;;
+            --exec-user) EXEC_USER="$2" ; shift ;;
             --exec-discard)
                 case "$2" in
                     off|always|onsuccess) EXEC_DISCARD="$2"; shift ;;
@@ -732,7 +732,7 @@ parse_config_args() {
                 [ -n "$EXEC_DISCARD" ] || EXEC_DISCARD="always"
                 [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
                 ;;
-            # exec|run) TBD ;;
+            exec|run) ACTION="exec" ;;
             start|boot) ACTION="boot" ;;
             stop|halt|poweroff|shutdown|restart) ACTION="$1" ;;
             reboot|reset) ACTION="reboot" ;;
