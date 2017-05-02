@@ -494,6 +494,9 @@ TBD() {
 # CLI-passed config file overrides) - e.g. container root datasets
 ############################################################################
 
+# TODO: Add (and rename?) options for things supported by zone-brand scripts
+# commonly, such as installation of a zone filesystem from archives and ZFS
+# snapshots instead of packaging.
 usage() {
     cat << EOF
 Usage: ${_SCRIPT_NAME} (options...) (action)"
@@ -536,6 +539,8 @@ be DHCP enabled (the GZ may serve DHCP+NAT over an etherstub for example):
             To use advanced setup, specify LINK as pipe-separated
             tuple of "LINK[|VLAN[|MAC]]" where unspecified values
             are assumed as OS-default setting.
+            The vnic will be pre-set for legacy DHCP (/etc/dhcp.VNICNAME).
+            TODO: Add an option for more flexible config?
 
 The following options APPEND to an existing list (so you can specify them
 several times):
@@ -544,7 +549,10 @@ several times):
     -P|--remove-packages LIST   Whitespace-separated list of package FMRIs to
             uninstall when creating the zone, or to manage later
     -g|--add-publisher LIST     Add the specified publisher(s) when creating
-            the zone or later; WS-SEP list of "pub|url" items
+            the zone or later; WS-SEP list of "pub|url" items. If this list
+            is not empty, the first publisher will be the default one to seed
+            the basic OS in the local zone (per host definition of its brand).
+            Other publishers and packages will be added after initial install.
     -G|--remove-publisher LIST  Remove publisher URLs and/or definitions using
             same argument format as above
     --mount-lofs LIST           Set up lofs-mounting of specified paths from
@@ -1486,6 +1494,11 @@ $ZONECFG_SCRIPT
     # TBD: Older Solarises - precreate zoneroot dataset?
     # TBD: Use args to template+brand based install to specify publishers
     # and packages, or just install + later revise?
+    # PLAN: If publisher list exists, preset the first pub as the zone's
+    # install one; then after initial minimal install add other pub's and
+    # add/remove packages - using pkg -R from GZ.
+    # TODO: Discover how the host GZ uses multiple publishers (its own)
+    # by default, when running "install" without the publisher option?
     logmsg_info "Installing zone '${TARGET_ZONE}' (note: at this time special options like publisher and pkg lists are not handled yet)"
     $ELEVATE_CMD zoneadm -z "${TARGET_ZONE}" install \
         || die "Could not install zone '$TARGET_ZONE'"
@@ -1519,6 +1532,13 @@ setup_zone_postinstall() {
     clone_groups
     clone_users
     # setup_ldap
+
+    # If VNICs exist:
+    # * Pre-set VNICs for legacy DHCP (/etc/dhcp.VNICNAME).
+    # * Enable network/physical:default
+    # * Enable ipfilter? Pre-set for config via /etc/ipf/* files?
+    # * TODO: Add a CLI option for more flexible config, e.g. static?
+
 }
 
 # pkg-update contents of a (golden-image?) zone, snapshot after success
