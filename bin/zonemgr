@@ -605,6 +605,11 @@ DATASET_CONTAINMENT_DIZ="rpool/zones/_zonemgr-DIZ"
 # values are reinitialized to actual value of respective mountpoint attr.
 DATASET_CONTAINMENT_GIZ_MPT=""
 DATASET_CONTAINMENT_DIZ_MPT=""
+# TODO: Add support (routines, CLI) for automated lifecycle of delegated
+# datasets stored in their delegated ZFS container, and perhaps stored in
+# a different pool. It would still be a job for the local zone to create,
+# mount and use datasets inside it (might start with a standard mountpoint
+# though).
 
 # Flip this to "yes" in a config to use "zfs create -p"
 CAN_ZFS_CREATE_RECURSIVE=no
@@ -960,6 +965,7 @@ create_dataset_containment_DIZ() {
     mount | grep "$DATASET_CONTAINMENT_DIZ"
 }
 
+# Mounted filesystem path to get the (target) zone's current rootfs
 ALTROOT=""
 getALTROOT() {
     [ -z "$ALTROOT" ] || { echo "$ALTROOT"; return 0; }
@@ -1499,7 +1505,10 @@ clone_zone() {
     # zone config as template (if differs from current) - create
     # a temporary zonecfg and overwrite with stashed file, etc.,
     # otherwise make snapshot of origin and use current zone config.
-    # Clone the zoneroot and delegated datasets.
+    # Clone the zoneroot, warn if any delegated datasets are overboard
+    # TODO: clone delegated datasets (figure out where to root the new tree,
+    #       and maybe play around the zoned=on and automount properties.
+    # Carry over local/received dataset properties to the clones.
     # Generate new zone config via snippets
     # TBD : verify that origin NICs (if any - should not be in a golden image
     # in the first place) are not used in new zone

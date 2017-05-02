@@ -115,3 +115,13 @@ role) via `pfexec`, and doing so from a Global zone.
 ** halt and roll back to specified snapshot (e.g. reuse same)
 ** run a command inside the zone (via zlogin), maybe as a specified account
 
+== Notes
+
+* Certain limitations, such as the initial set of installed packages and the
+  amount of package repositories or other media (archives, snapshots) that
+  can be used to seed a local zone's filesystem, come from the existing zone
+  brand scripts which differ between distributions. While I have done some
+  private hacks to circumvent these limitations in my experiments, a proper
+  solution setup might be to upstream these experiments or define and package
+  custom zone brands - but either way the proper fix is outside a script like
+  this one.
