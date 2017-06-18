@@ -599,6 +599,14 @@ or better stick with default "pfexec" and set up Solaris RBAC for the account:
 EOF
 }
 
+if [ $# = 0 ]; then
+    echo "ERROR: No (valid) required arguments were provided" >&2
+    usage
+    exit 1
+fi
+
+
+
 # Prefix commands that change system state with this
 ELEVATE_CMD="pfexec"
 OUTFILE=""
@@ -1892,6 +1900,10 @@ case "$ACTION" in
     boot|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
         eval "$ACTION"_zone "$TARGET_ZONE" \
             || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
+        ;;
+    "") echo "ERROR: No (valid) required arguments were provided" >&2
+        usage
+        exit 1
         ;;
     *) echo "Would do ACTION='$ACTION'" ;;
 esac
