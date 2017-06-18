@@ -1389,6 +1389,8 @@ upgrade_zones_giz() {
 # TBD: Store a plaintext list of required packages in a zonecfg attr?
 generate_zonename() {
     # TBD : See comment above about hashing the zone name with useful content
+    logmsg_trace "Generating a zone name..." >&2
+
     local EXISTING_ZONES="`zoneadm list -p | awk -F: '{print $2}'`"
     local TRYNAME
     local Z
@@ -1403,10 +1405,14 @@ generate_zonename() {
         done
         break
     done
+
+    logmsg_trace "Generated a zone name: $TRYNAME" >&2
     echo "$TRYNAME"
 }
 
 generate_zonecfg_snippets() {
+    logmsg_trace "Generating zonecfg snippets..." >&2
+
     zonecfg_snippet_create
     zonecfg_snippet_basics
     zonecfg_snippet_attr_origin
@@ -1416,11 +1422,15 @@ generate_zonecfg_snippets() {
     # if ... zonecfg_snippet_assign_lofs "HOSTDIR" "ZONEDIR"
     echo "verify"
     echo "commit"
+
+    logmsg_trace "Generated zonecfg snippets" >&2
 }
 
 generate_zonecfg_script() {
+    logmsg_trace "Generating zonecfg script..." >&2
     ZONECFG_SCRIPT="$(generate_zonecfg_snippets)" && [ -n "$ZONECFG_SCRIPT" ] \
         || die "Could not generate ZONECFG_SCRIPT"
+    logmsg_trace "Generated zonecfg script" >&2
 }
 
 # Snapshot a zone
