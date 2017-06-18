@@ -1399,8 +1399,9 @@ generate_zonename() {
         TRYNAME="autozone-$$-${RANDOM}"
         [ -z "$EXISTING_ZONES" ] && break
         for Z in $EXISTING_ZONES ; do
-            [ "$Z" = "${TRYNAME}" ] && break 2
+            [ "$Z" = "${TRYNAME}" ] && continue 2
         done
+        break
     done
     echo "$TRYNAME"
 }
