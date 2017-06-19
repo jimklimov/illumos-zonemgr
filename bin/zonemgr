@@ -578,7 +578,7 @@ Actions: the last specified action is performed (so please only call one).
     verify (NAME)       Query if the named zonename has valid manifest and
             is managed by this script
     destroy             Uninstall and unconfigure the specified zone, and
-            destroy any automatically created VNICs
+            destroy any automatically created VNICs, requires "-z ZONENAME"
     start|boot          Boot the specified zone and wait for multi-user-server
             milestone to get reached
     stop|halt|poweroff  Halt or quickly shutdown the specified zone
