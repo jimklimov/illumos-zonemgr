@@ -1640,7 +1640,7 @@ ${ZONECFG_SCRIPT}
 $ZONECFG_SCRIPT
 ======="
     verify_zone "${TARGET_ZONE}"
-    secure_assigned_datasets
+    secure_assigned_datasets "${TARGET_ZONE}"
 
     # TBD: Older Solarises - precreate zoneroot dataset?
     # TBD: Use args to template+brand based install to specify publishers
@@ -1676,7 +1676,7 @@ clone_zone() {
     # Generate new zone config via snippets
     # If the new zone config has delegated datasets, make sure they exist
     # and have proper rights and zfs attrs
-    #   secure_assigned_datasets
+    #   secure_assigned_datasets "${TARGET_ZONE}"
     # TBD : verify that origin NICs (if any - should not be in a golden image
     # in the first place) are not used in new zone
     setup_zone_postinstall
