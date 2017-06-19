@@ -1225,8 +1225,8 @@ secure_assigned_datasets() {
 }
 
 zonecfg_snippet_assign_lofs() {
-    local HOSTDIR="$1"
-    local ZONEDIR="$2"
+    local ZONEDIR="$1"
+    local HOSTDIR="$2"
     [ -n "${HOSTDIR-}" ] || die "Bad args to zonecfg_snippet_assign_lofs()"
     [ -n "${ZONEDIR-}" ] || ZONEDIR="${HOSTDIR-}"
     cat << EOF
@@ -1237,6 +1237,18 @@ set type=lofs
 add options [rw,nodevices]
 end
 EOF
+}
+
+zonecfg_snippet_assign_lofs_list() {
+    # $1 = $ADD_MOUNT_LOFS, list of "lzpath|gzpath lzpath2|gzpath2 ..."
+    local LZPATH GZPATH L_G
+    if [ -n "$1" ]; then
+        for L_G in $1 ; do
+            LZPATH="`echo "$L_G" | ( IFS='|' read _1 _2 ; echo "${_1}" )`"
+            GZPATH="`echo "$L_G" | ( IFS='|' read _1 _2 ; echo "${_2}" )`"
+            zonecfg_snippet_assign_lofs "$LZPATH" "$GZPATH"
+        done
+    fi
 }
 
 # Scripted cloning of file-based user/shadow and group account data from GZ
