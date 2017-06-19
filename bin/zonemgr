@@ -1004,6 +1004,7 @@ create_dataset_containment_DIZ() {
 }
 
 # Mounted filesystem path to get the (target) zone's current rootfs
+# Value for the zone manipulated in this run is cached after first call
 ALTROOT=""
 getALTROOT() {
     [ -z "$ALTROOT" ] || { echo "$ALTROOT"; return 0; }
