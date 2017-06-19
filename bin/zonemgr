@@ -864,18 +864,21 @@ zfs_getDSbyMPT() {
 }
 
 zfs_getMPTbyDS() {
-    [ -n "$1" ] || return 1
-    zfs list -H -o mountpoint "$1"
+    local DSNAME="$1"
+    [ -n "$DSNAME" ] || return 1
+    zfs list -H -o mountpoint "$DSNAME"
 }
 
 zfs_dataset_exists() {
-    test "$(zfs list -H -o name "$1" 2>/dev/null)" = "$1" && return 0
+    local DSNAME="$1"
+    test "$(zfs list -H -o name "$DSNAME" 2>/dev/null)" = "$DSNAME" && return 0
     local OUT
-    OUT="$(zfs list "$1" 2>/dev/null)" && [ -n "$OUT" ] && return 0
+    OUT="$(zfs list "$DSNAME" 2>/dev/null)" && [ -n "$OUT" ] && return 0
     return 1
 }
 
 is_mounted() {
+    # $1 can be either DS or MPT, and technically a substring of either
     mount | grep "$1" > /dev/null
 }
 
@@ -1126,7 +1129,8 @@ create_vnic() {
 }
 
 delete_vnic() {
-    $ELEVATE_CMD dladm delete-vnic "$1"
+    local NICNAME="$1"
+    $ELEVATE_CMD dladm delete-vnic "$NICNAME"
 }
 
 # TBD: Destroy the VNIC when scrapping the zone, but do not use
@@ -1140,9 +1144,10 @@ list_auto_vnics_all() {
 }
 
 list_auto_vnics_zonecfg() {
+    local DSNAME="$1"
     #$ELEVATE_CMD \
-    zonecfg -z "$1" "info attr name=autovnic" | grep -v 'No such attr resource'
-    TBD # test this on various unsuspecting victims
+    zonecfg -z "$DSNAME" "info attr name=autovnic" | grep -v 'No such attr resource'
+    #TBD # test this on various unsuspecting victims
 }
 
 list_auto_vnics_orphaned() {
@@ -1157,9 +1162,10 @@ list_auto_vnics_orphaned() {
 # TBD: Constrain resources (cap memory/swap, set cpu-shares, ncpus and/or
 # host-defined resource pools in zonecfg; set tmpfs limits in vfstab)
 zonecfg_snippet_assign_nic() {
+    local NICNAME="$1"
     cat << EOF
 add net
-set physical=$1
+set physical=$NICNAME
 end
 EOF
     # TBD: Do we need a "match" for the device too?
@@ -1188,37 +1194,42 @@ EOF
 }
 
 zonecfg_snippet_assign_dataset() {
+    local DSNAME="$1"
     cat << EOF
 add dataset
-set name=$1
+set name=$DSNAME
 end
 EOF
 }
 
 list_assigned_datasets() {
     local N D
+    local ZONENAME="$1"
 
     LANG=C LC_ALL=C \
-    zonecfg -z "$1" "info dataset" | while read N D ; do
+    zonecfg -z "$ZONENAME" "info dataset" | while read N D ; do
         [ "$N" = "name:" ] && echo "$D"
     done
 }
 
 secure_zoned_dataset() {
-    zfs_create_recursive "$1" || return
-    if is_mounted "$1" ; then
-        $ELEVATE_CMD zfs umount "$1" || \
-            $ELEVATE_CMD umount "$1"
+    local DSNAME="$1"
+
+    zfs_create_recursive "$DSNAME" || return
+    if is_mounted "$DSNAME" ; then
+        $ELEVATE_CMD zfs umount "$DSNAME" || \
+            $ELEVATE_CMD umount "$DSNAME"
     fi
-    $ELEVATE_CMD zfs set canmount=off "$1"
-    $ELEVATE_CMD zfs set mountpoint=legacy "$1"
-    $ELEVATE_CMD zfs set zoned=on "$1"
+    $ELEVATE_CMD zfs set canmount=off "$DSNAME"
+    $ELEVATE_CMD zfs set mountpoint=legacy "$DSNAME"
+    $ELEVATE_CMD zfs set zoned=on "$DSNAME"
 }
 
 secure_assigned_datasets() {
     local DS
     local RES=0
-    for DS in `list_assigned_datasets "$1"` ; do
+    local ZONENAME="$1"
+    for DS in `list_assigned_datasets "$ZONENAME"` ; do
         secure_zoned_dataset "$DS" || RES=$?
     done
     return $RES
@@ -1399,29 +1410,34 @@ list_zones_managed_all() {
 }
 
 get_zone_root() {
-    [ -n "$1" ] && \
-    zoneadm -z "$1" list -p 2>/dev/null | \
+    local ZONENAME="$1"
+    [ -n "$ZONENAME" ] && \
+    zoneadm -z "$ZONENAME" list -p 2>/dev/null | \
         awk -F: '{print $4} '
 }
 
 get_zone_root_ds() {
-    zfs_getDSbyMPT "`get_zone_root "$1"`"
+    local ZONENAME="$1"
+    zfs_getDSbyMPT "`get_zone_root "$ZONENAME"`"
 }
 
 get_zone_state() {
-    [ -n "$1" ] && \
-    zoneadm -z "$1" list -p 2>/dev/null | \
+    local ZONENAME="$1"
+    [ -n "$ZONENAME" ] && \
+    zoneadm -z "$ZONENAME" list -p 2>/dev/null | \
         awk -F: '{print $3} '
 }
 
 is_managed_zone() {
     # Returns TRUE if the zonepath of "$1" is under GIZ or DIZ container
-    get_zone_root "$1" | \
+    local ZONENAME="$1"
+    get_zone_root "$ZONENAME" | \
         egrep "^($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" >/dev/null
 }
 
 check_is_managed_zone() {
-    [ -n "$1" ] || { logmsg_error "No zone specified, while asked to inspect it" ; return 1; }
+    local ZONENAME="$1"
+    [ -n "$ZONENAME" ] || { logmsg_error "No zone specified, while asked to inspect it" ; return 1; }
     if ! is_managed_zone "$@" ; then
         logmsg_error "Can not confirm that zone '$*' can be managed by this script"
         return 1
@@ -1429,12 +1445,14 @@ check_is_managed_zone() {
 }
 
 is_managed_zone_diz() {
-    get_zone_root "$1" | \
+    local ZONENAME="$1"
+    get_zone_root "$ZONENAME" | \
         egrep "^($DATASET_CONTAINMENT_DIZ_MPT)/" >/dev/null
 }
 
 is_managed_zone_giz() {
-    get_zone_root "$1" | \
+    local ZONENAME="$1"
+    get_zone_root "$ZONENAME" | \
         egrep "^($DATASET_CONTAINMENT_GIZ_MPT)/" >/dev/null
 }
 
@@ -1557,11 +1575,12 @@ snapshot_zone() {
 }
 
 verify_zone() {
-    [ -n "${1-}" ] || \
+    local ZONENAME="${1-}"
+    [ -n "$ZONENAME" ] || \
         { logmsg_error "No zone specified, while asked to inspect it" ; return 1; }
-    $ELEVATE_CMD zoneadm -z "$1" verify || \
-        { clean_exit "Could not verify configuration of zone '$1'" ; return 1; }
-    check_is_managed_zone "$1"
+    $ELEVATE_CMD zoneadm -z "$ZONENAME" verify || \
+        { clean_exit "Could not verify configuration of zone '$ZONENAME'" ; return 1; }
+    check_is_managed_zone "$ZONENAME"
 }
 
 install_zone() {
@@ -1659,102 +1678,117 @@ install_packages() {
 # Start, stop a zone
 zone_action() {
     if [ "$#" = 2 ] ; then
-        [ -n "$2" ] || die "No zone specified, while required for action '$1'"
-        check_is_managed_zone "$2" || return
-        logmsg_info "Trying to '$1' zone '$2'..."
-        case "$1" in
+        local ZONEACTION="$1"
+        local ZONENAME="$2"
+
+        [ -n "$ZONENAME" ] || die "No zone specified, while required for action '$ZONEACTION'"
+        check_is_managed_zone "$ZONENAME" || return
+        logmsg_info "Trying to '$ZONEACTION' zone '$ZONENAME'..."
+        case "$ZONEACTION" in
             boot|halt|poweroff|reboot|ready|mount|unmount)
-                case "$1" in
+                case "$ZONEACTION" in
                     boot|reboot|ready|mount)
-                        secure_assigned_datasets "$2" ;;
+                        secure_assigned_datasets "$ZONENAME" ;;
                 esac
                 $ELEVATE_CMD \
-                    zoneadm -z "$2" "$1"
+                    zoneadm -z "$ZONENAME" "$ZONEACTION"
                 return $?
                 ;;
             poweroff)
                 $ELEVATE_CMD \
-                    zlogin -S "$2" "poweroff"
+                    zlogin -S "$ZONENAME" "poweroff"
                 return $?
                 ;;
             shutdown)
                 $ELEVATE_CMD \
-                    zlogin -S "$2" "init 5" || \
+                    zlogin -S "$ZONENAME" "init 5" || \
                 $ELEVATE_CMD \
-                    zlogin -S "$2" "shutdown" || \
+                    zlogin -S "$ZONENAME" "shutdown" || \
                 $ELEVATE_CMD \
-                    zoneadm -z "$2" "$1"
+                    zoneadm -z "$ZONENAME" "$ZONEACTION"
                 return $?
                 ;;
         esac
     fi
-    logmsg_error "Unsupported action '$1' for zone '$2'"
+    logmsg_error "Unsupported action '$ZONEACTION' for zone '$ZONENAME'"
     return 1
 }
 
 boot_zone() {
-    zone_action boot "$1"
+    local ZONENAME="$1"
+    zone_action boot "$ZONENAME"
 }
 
 start_zone() {
     local RES=0
-    boot_zone "$1" || \
-        { RES=$? ; logmsg_error "Zone '$1' did not boot" ; return $RES; }
+    local ZONENAME="$1"
 
-    zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null || \
-        { RES=$? ; logmsg_error "Zone '$1' not running after trying to start it" ; return $RES; }
+    boot_zone "$ZONENAME" || \
+        { RES=$? ; logmsg_error "Zone '$ZONENAME' did not boot" ; return $RES; }
+
+    zoneadm -z "$ZONENAME" list -p | awk -F: '{print $3}' | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null || \
+        { RES=$? ; logmsg_error "Zone '$ZONENAME' not running after trying to start it" ; return $RES; }
 
     # TODO: Possibility for infinite loop if something hangs inside the zone
     # See https://github.com/jimklimov/illumos-smf-zones for more of this logic
-    logmsg_info "Waiting for multi-user-server milestone to get reached in zone '$1'..."
+    logmsg_info "Waiting for multi-user-server milestone to get reached in zone '$ZONENAME'..."
     sleep 5
     while : ; do
-        $ELEVATE_CMD zlogin -S "$1" 'svcadm enable -ts svc:/milestone/multi-user-server:default' \
+        $ELEVATE_CMD zlogin -S "$ZONENAME" 'svcadm enable -ts svc:/milestone/multi-user-server:default' \
             && return 0
         sleep 3
-        zoneadm -z "$1" list -p | awk -F: '{print $3}' | egrep -i 'INSTALLED' >/dev/null && \
-            { RES=$? ; logmsg_error "Zone '$1' died after startup" ; return $RES; }
+        zoneadm -z "$ZONENAME" list -p | awk -F: '{print $3}' | egrep -i 'INSTALLED' >/dev/null && \
+            { RES=$? ; logmsg_error "Zone '$ZONENAME' died after startup" ; return $RES; }
     done
     return $RES
 }
 
 halt_zone() {
-    zone_action halt "$1"
+    local ZONENAME="$1"
+    zone_action halt "$ZONENAME"
 }
 
 poweroff_zone() {
-    zone_action poweroff "$1"
+    local ZONENAME="$1"
+    zone_action poweroff "$ZONENAME"
 }
 
 shutdown_zone() {
-    zone_action shutdown "$1"
+    local ZONENAME="$1"
+    zone_action shutdown "$ZONENAME"
 }
 
 stop_zone() {
-    shutdown_zone "$1" || \
-    poweroff_zone "$1"
-    halt_zone "$1"
+    local ZONENAME="$1"
+    shutdown_zone "$ZONENAME" || \
+    poweroff_zone "$ZONENAME"
+    halt_zone "$ZONENAME"
 }
 
 restart_zone() {
-    stop_zone "$1"
-    start_zone "$1"
+    local ZONENAME="$1"
+    stop_zone "$ZONENAME"
+    start_zone "$ZONENAME"
 }
 
 reboot_zone() {
-    zone_action reboot "$1"
+    local ZONENAME="$1"
+    zone_action reboot "$ZONENAME"
 }
 
 ready_zone() {
-    zone_action ready "$1"
+    local ZONENAME="$1"
+    zone_action ready "$ZONENAME"
 }
 
 mount_zone() {
-    zone_action mount "$1"
+    local ZONENAME="$1"
+    zone_action mount "$ZONENAME"
 }
 
 unmount_zone() {
-    zone_action unmount "$1"
+    local ZONENAME="$1"
+    zone_action unmount "$ZONENAME"
 }
 
 # Destroy a zone (including config, delegated datasets, zoneroot and VNICs)
