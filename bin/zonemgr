@@ -569,6 +569,9 @@ several times):
             GZ, as a whitespace-separated list of "lzpath|gzpath" items
     --mount-autonfs LIST        Set up autofs-mounting of specified NFS paths,
             as whitespace-separated list of "lzpath|NFSurl" items
+    --delegate-dataset LIST     Set up creation and delegation of specified
+            whitespace-separated list of zfs datasets (usage to be defined by
+            corresponding local zone admin)
     --copy-users LIST   Copy listed (white-space separated) group and user
     --copy-groups LIST  ...account defs from GZ to LZ (lines in file DBs)
 
@@ -664,6 +667,7 @@ ADD_PACKAGE_FMRIS=""
 DEL_PACKAGE_FMRIS=""
 ADD_MOUNT_LOFS=""
 ADD_MOUNT_AUTONFS=""
+ADD_DELEGATED_DATASET=""
 COPY_USERS=""
 COPY_GROUPS=""
 EXEC_CMD=""
@@ -726,6 +730,8 @@ parse_config_args() {
                 ADD_MOUNT_LOFS="$ADD_MOUNT_LOFS $2"; shift ;;
             --mount-autonfs)
                 ADD_MOUNT_AUTONFS="$ADD_MOUNT_AUTONFS $2"; shift ;;
+            --delegate-dataset)
+                ADD_DELEGATED_DATASET="$ADD_DELEGATED_DATASET $2"; shift ;;
             --copy-users|--copy-user)
                 COPY_USERS="$COPY_USERS $2"; shift ;;
             --copy-groups|--copy-group)
@@ -813,6 +819,7 @@ print_config() {
     "DEL_PACKAGE_FMRIS='$DEL_PACKAGE_FMRIS'" \
     "ADD_MOUNT_LOFS='$ADD_MOUNT_LOFS'" \
     "ADD_MOUNT_AUTONFS='$ADD_MOUNT_AUTONFS'" \
+    "ADD_DELEGATED_DATASET='$ADD_DELEGATED_DATASET'" \
     "COPY_USERS='$COPY_USERS'" \
     "COPY_GROUPS='$COPY_GROUPS'" \
     "USE_VNICS='$USE_VNICS'" \
@@ -1202,6 +1209,16 @@ add dataset
 set name=$DSNAME
 end
 EOF
+}
+
+zonecfg_snippet_assign_dataset_list() {
+    # $1 == ADD_DELEGATED_DATASET, a whitespace-separated list
+    if [ -n "$1" ]; then
+        local DSNAME
+        for DSNAME in $1 ; do
+	    zonecfg_snippet_assign_dataset "$DSNAME"
+        done
+    fi
 }
 
 list_assigned_datasets() {
