@@ -221,6 +221,16 @@ tee_stderr() {
     :
 }
 
+join_regex() {
+    local REGEX=""
+    [ $# != 0 ] || return 1
+    while [ $# -gt 0 ] ; do
+        [ -n "$REGEX" ] && REGEX="$REGEX|$1" || REGEX="$1"
+        shift
+    done
+    echo "($REGEX)"
+}
+
 # This value can be set, at least in bash, to specify at which location
 # the caller of DIE was in the scripts
 SCRIPTLIB_DIE_FILENAME=""   # Which (maybe included) file caused the failure
@@ -572,7 +582,8 @@ Actions: the last specified action is performed (so please only call one).
             runs a command in this zone, and discards the zone
     exec                Using an existing zone, runs a command in it (boots
             it up if needed - and halts afterwards in this case)
-    list|list-diz|list-giz    List zones managed by this script
+    list|list-diz|list-giz    List zones managed by this script, accepts a
+            single optional parameter with valid mix of zoneadm tokens -cpiv
     is-managed|is-diz|is-giz (NAME)     Query if the named zonename is managed
             by this script (name can be passed quickly without -z)
     verify (NAME)       Query if the named zonename has valid manifest and
@@ -661,6 +672,9 @@ EXEC_DISCARD=""
 USE_VNICS=""
 AUTO_VNICS=""
 
+# Arguments for zone-listing (passed to zoneadm)
+LIST_ARGS=""
+
 # What will we do?
 ACTION=""
 ZONECFG_SCRIPT=""
@@ -728,8 +742,13 @@ parse_config_args() {
                     *) logmsg_error "Unknown CLI argument: $1 $2" ; exit 1 ;;
                 esac
                 ;;
-            create-giz|create-diz|list|list-giz|list-diz|destroy|snapshot|rollback|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
-            list-all) ACTION="list" ;;
+            create-giz|create-diz|destroy|snapshot|rollback|pkg-refresh|pkg-upgrade|pkg-install|pkg-uninstall) ACTION="$1" ;;
+            list|list-giz|list-diz|list-all)
+                [ "$1" = list-all ] && ACTION="list" || ACTION="$1"
+                case "$2" in
+                    -c|-v|-cv|-vc|-cp|-p|-pv|-i|-iv|-vi|-ip|pi)  LIST_ARGS="$2" ; shift ;;
+                esac
+                ;;
             is-managed|is-managed-all|is-managed-any) ACTION="is-managed-any"
                 [ -n "$TARGET_ZONE" ] || \
                 case "$2" in
@@ -1311,22 +1330,60 @@ setup_ldap() {
 # container datasets)
 #   Assume no whitespaces in path and zone names
 #   Support legacy dumber zoneadm syntax
-list_zones_managed_giz() {
+do_list_zones_managed_giz() {
     # TBD: combine grep and awk when I'd be in illumos (zonepath is $4 IIRC?)
     # and verify zonename is the $2
     zoneadm list -cp | grep ":$DATASET_CONTAINMENT_GIZ_MPT/" | \
         awk -F: '{print $2}'
 }
 
-list_zones_managed_diz() {
+do_list_zones_managed_diz() {
     zoneadm list -cp | grep ":$DATASET_CONTAINMENT_DIZ_MPT/" | \
         awk -F: '{print $2}'
 }
 
-list_zones_managed_all() {
+do_list_zones_managed_all() {
     zoneadm list -cp | \
         egrep ":($DATASET_CONTAINMENT_GIZ_MPT|$DATASET_CONTAINMENT_DIZ_MPT)/" | \
         awk -F: '{print $2}'
+}
+
+zonelist_args() {
+    [ $# != 0 ] || return 1
+    local REGEX="`join_regex "$@"`" || return
+
+    case "$LIST_ARGS" in
+	*p*) # No header, machine-parseable
+            zoneadm list $LIST_ARGS | egrep ":$REGEX:" ;;
+	*v*) # One header line, human-readable
+            zoneadm list $LIST_ARGS | awk '($2 ~ /^'"$REGEX"'$|^NAME$/) {print $0}' ;;
+        *i*|*c*) # Just list of names of zones in certain status
+            zoneadm list $LIST_ARGS | egrep '^'"$REGEX"'$' ;;
+    esac
+}
+
+list_zones_managed_giz() {
+    if [ -z "$LIST_ARGS" ] ; then
+        do_list_zones_managed_giz
+    else
+        zonelist_args `do_list_zones_managed_giz`
+    fi
+}
+
+list_zones_managed_diz() {
+    if [ -z "$LIST_ARGS" ] ; then
+        do_list_zones_managed_diz
+    else
+        zonelist_args `do_list_zones_managed_diz`
+    fi
+}
+
+list_zones_managed_all() {
+    if [ -z "$LIST_ARGS" ] ; then
+        do_list_zones_managed_all
+    else
+        zonelist_args `do_list_zones_managed_all`
+    fi
 }
 
 get_zone_root() {
