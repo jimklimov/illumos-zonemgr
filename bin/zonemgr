@@ -1127,6 +1127,9 @@ create_vnic() {
         *) logmsg_warn "Uncertain which VNIC name pattern to use for ACTION='$ACTION'"
            VNIC="auto${TARGET_ZONE}" ;;
     esac
+    # VNIC names must be 16 max characters, [a-z0-9_]
+    # We leave 3 chars for up to 999 VNIC numbers with a given "basename"
+    VNIC="`echo "${VNIC}" | tr 'A-Z' 'a-z' | sed 's,[^a-z0-9_],,g' | cut -b 1-13`"
     VNIC="${VNIC}$(dladm show-vnic | egrep -c "^${VNIC}"'[0-9]*[ \t]')"
 
     DLADM_ARGS="-l ${LINK}"
