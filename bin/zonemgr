@@ -551,6 +551,7 @@ be DHCP enabled (the GZ may serve DHCP+NAT over an etherstub for example):
             are assumed as OS-default setting.
             The vnic will be pre-set for legacy DHCP (/etc/dhcp.VNICNAME).
             TODO: Add an option for more flexible config?
+    TODO: Add options to define desired VNIC name and/or use existing NICs?
 
 The following options APPEND to an existing list (so you can specify them
 several times):
