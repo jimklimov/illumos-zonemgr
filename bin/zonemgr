@@ -1697,6 +1697,7 @@ destroy_zone() {
     local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
 
     stop_zone "$ZONENAME"
+    unmount_zone "$ZONENAME"
 
     logmsg_info "Uninstalling zone '$ZONENAME'..."
     $ELEVATE_CMD zoneadm -z "$ZONENAME" uninstall -F
