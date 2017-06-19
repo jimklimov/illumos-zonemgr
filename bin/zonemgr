@@ -1104,6 +1104,7 @@ create_vnic() {
     # Input value is "LINK[|VLAN[|MAC]]" string with returned vnic name
     # based on the value of TARGET_ZONE (if present).
     # Output: echoes the vnic name if successfully created
+    local LINK VLAN MACADDR VNIC DLADM_ARGS
     LINK="$(echo "$1" | (IFS='|' read L V M ; echo "$L"))"
     if [ -z "$LINK" ]; then
         logmsg_error "Did not find a LINK in specified arguments: '$1'"
