@@ -1522,6 +1522,7 @@ generate_zonename() {
 
     # NOTE: Infinite loop possible here, if all 99999 random numbers are
     # already used for this PID number. I guess the server boils sooner.
+    # Limits are 64 chars, not "global" and not starting with "SUNW"...
     while : ; do
         TRYNAME="autozone-$$-${RANDOM}"
         [ -z "$EXISTING_ZONES" ] && break
