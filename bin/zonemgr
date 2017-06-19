@@ -1625,6 +1625,11 @@ verify_zone() {
 
 install_zone() {
     [ -n "$TARGET_ZONE" ] || TARGET_ZONE="$(generate_zonename)"
+    if check_is_managed_zone "$TARGET_ZONE" ; then
+        die "Could not configure zone '$TARGET_ZONE': it already exists, destroy it first if needed"
+        # TBD: forcing or re-creation is not supported by the script... should it be?
+    fi
+
     generate_zonecfg_script
 
     logmsg_info "Configuring zone '${TARGET_ZONE}' with the following zonecfg script:" \
