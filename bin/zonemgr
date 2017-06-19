@@ -1541,8 +1541,9 @@ generate_zonecfg_snippets() {
     # just like datasets for DIZ's to replicate too when cloning?
     #[ "$ACTION" = create-diz ] && \
     zonecfg_snippet_auto_vnics
-    # if ... zonecfg_snippet_assign_dataset "DSNAME"
-    # if ... zonecfg_snippet_assign_lofs "HOSTDIR" "ZONEDIR"
+
+    zonecfg_snippet_assign_dataset_list "$ADD_DELEGATED_DATASET"
+    zonecfg_snippet_assign_lofs_list "$ADD_MOUNT_LOFS"
     # zonecfg_snippet_assign_autonfs_list "$ADD_MOUNT_AUTONFS"
     echo "verify"
     echo "commit"
