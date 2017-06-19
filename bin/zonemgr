@@ -1122,7 +1122,7 @@ list_auto_vnics_all() {
 
 list_auto_vnics_zonecfg() {
     #$ELEVATE_CMD \
-    zonecfg -z "$1" "info attr name=autovnic"
+    zonecfg -z "$1" "info attr name=autovnic" | grep -v 'No such attr resource'
     TBD # test this on various unsuspecting victims
 }
 
