@@ -1917,7 +1917,7 @@ case "$ACTION" in
         usage
         exit 1
         ;;
-    *) echo "Would do ACTION='$ACTION'" ;;
+    *) echo "DEBUG: Would do ACTION='$ACTION' but this is not implemented (yet?)" >&2 ; exit 1 ;;
 esac
 
 clean_exit
