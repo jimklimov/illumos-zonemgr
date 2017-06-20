@@ -507,6 +507,7 @@ TBD() {
 # TODO: Add (and rename?) options for things supported by zone-brand scripts
 # commonly, such as installation of a zone filesystem from archives and ZFS
 # snapshots instead of packaging.
+# TODO: Support zone naming by UUID (zoneadm -u uuid), not only by name (-z)?
 usage() {
     cat << EOF
 Usage: ${_SCRIPT_NAME} (options...) (action)"
