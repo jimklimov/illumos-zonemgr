@@ -609,6 +609,8 @@ Actions: the last specified action is performed (so please only call one).
                         (requires -z and optional -s arguments)
     rollback            (Halt and) roll back the target zone to old snapshot
                         (requires -z and optional -s arguments)
+    list-snapshots (name)      List snapshots (the @comments) of the target
+            zone (name can be passed quickly without -z)
 
 NOTE: The user account running this script should be permitted to elevate
 privileges for certain operations. You can use config files to use "sudo",
@@ -761,6 +763,13 @@ parse_config_args() {
                 [ "$1" = list-all ] && ACTION="list" || ACTION="$1"
                 case "$2" in
                     -c|-v|-cv|-vc|-cp|-p|-pv|-i|-iv|-vi|-ip|pi)  LIST_ARGS="$2" ; shift ;;
+                esac
+                ;;
+            list-snapshots|list-snaps) ACTION="list-snapshots"
+                [ -n "$TARGET_ZONE" ] || \
+                case "$2" in
+                    -*|"") ;;
+                    *)  TARGET_ZONE="$2" ; shift ;;
                 esac
                 ;;
             is-managed|is-managed-all|is-managed-any) ACTION="is-managed-any"
@@ -2171,6 +2180,10 @@ case "$ACTION" in
     rollback)
         check_is_managed_zone "$TARGET_ZONE" || die
         rollback_zone "$TARGET_ZONE" "$SNAP_NAME"
+        ;;
+    list-snapshots)
+        check_is_managed_zone "$TARGET_ZONE" || die
+        list_zone_snapshot_datasets "$TARGET_ZONE" | pipe_get_snapshot_comment || die
         ;;
 #   pkg-refresh)
 #   pkg-upgrade)
