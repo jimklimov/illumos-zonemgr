@@ -1032,6 +1032,45 @@ getALTROOT() {
     echo "$ALTROOT"
 }
 
+list_zone_snapshot_datasets() {
+    local ZONENAME="$1"
+    local SNAPNAME
+    check_is_managed_zone "$ZONENAME" || return
+
+    local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
+    local ZONEROOT_DS="`zfs_getDSbyMPT "${ZONEROOT_MPT}"`" || return
+
+    # TBD: Filter out snapshots not managed by this script,
+    # e.g. zfs-auto-snap's and/or user-created snaps, to ensure
+    # consistency of zoneroot and delegated datasets' comments?
+    SNAPNAME="$(zfs list -tsnapshot -Honame -screation -d1 "$ZONEROOT_DS")" \
+    && [ -n "$SNAPNAME" ] || { logmsg_error "Got an error listing snapshots of $ZONEROOT_DS"; return 1; }
+    echo "$SNAPNAME"
+}
+
+get_zone_newest_snapshot_dataset() {
+    local ZONENAME="$1"
+    local SNAPNAME
+
+    SNAPNAME="$(list_zone_snapshot_datasets "$ZONENAME")" || return
+    SNAPNAME="$(echo "$SNAPNAME" | tail -n 1)" \
+        && [ -n "$SNAPNAME" ] || { logmsg_error "Got an error determining newest snapshot dataset of $ZONEROOT_DS"; return 1; }
+    echo "$SNAPNAME"
+}
+
+pipe_get_snapshot_comment() {
+    sed 's,^.*@,,'
+}
+
+get_zone_newest_snapshot_comment() {
+    local ZONENAME="$1"
+    local SNAPCOMMENT SNAPNAME
+    SNAPNAME="$(get_zone_newest_snapshot_dataset "$ZONENAME")" || return
+    SNAPCOMMENT="$(echo "$SNAPNAME" | pipe_get_snapshot_comment)" \
+        && [ -n "$SNAPCOMMENT" ] || { logmsg_error "Got an error determining comment of newest snapshot for zone $ZONENAME"; return 1; }
+    echo "$SNAPCOMMENT"
+}
+
 ############################################################################
 # Create the golden-image zone from scratch, if the name is not yet occupied
 # The zonecfg_snippet_*() routines print a bit of configuration for zonecfg
@@ -1575,7 +1614,8 @@ snapshot_zone() {
     local ZONENAME="$1"
     local SNAPCOMMENT="$2"
     if [ -z "$SNAPCOMMENT" ] ; then
-        SNAPCOMMENT="autozone-`date +%Y%m%dT%H%M%SZ`" || \
+        logmsg_info "No snapshot comment specified for the zone, using timestamp or PID"
+        SNAPCOMMENT="autozone-`date -u +%Y%m%dT%H%M%SZ`" || \
             SNAPCOMMENT="autozone-$$"
     fi
 
@@ -1594,10 +1634,13 @@ snapshot_zone() {
     local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
     local ZONEROOT_DS="`zfs_getDSbyMPT "${ZONEROOT_MPT}"`" || return
 
+    # If the zoneroot was not mounted, mount it.
+    # When it is mounted, export zoneconfig there (and unmount back if needed).
     if is_mounted "$ZONEROOT_MPT" ; then
         WAS_MOUNTED=yes
     else
-        $ELEVATE_CMD zfs mount "$ZONEROOT_MPT"
+        $ELEVATE_CMD zfs mount "$ZONEROOT_MPT" || \
+        $ELEVATE_CMD zfs mount "$ZONEROOT_DS"
         WAS_MOUNTED=no
     fi
     if is_mounted "$ZONEROOT_MPT" ; then
@@ -1884,12 +1927,86 @@ destroy_zone() {
     done
 }
 
-# Halt and roll back to specified or most-recent snapshot (e.g. reuse same
+# Halt* and roll back to specified or most-recent snapshot (e.g. reuse same
 # blank zone content for another job). Note that technically the most-recent
 # snapshot may be that of a most-recent GZ OS update, not of the stable state
 # after last zone install/update as may be intended by sysadmin.
+# *Rollback a zone, halt and restart if was running
 rollback_zone() {
-    TBD
+    local ZONENAME="$1"
+    local SNAPCOMMENT="$2"
+    local D SNAP_RES
+
+    logmsg_info "Rolling back zone '${ZONENAME}'@'${SNAPCOMMENT}'"
+    check_is_managed_zone "$ZONENAME" || return
+
+    if [ -z "$SNAPCOMMENT" ] ; then
+        logmsg_info "No snapshot comment specified for the zone, using newest snapshot of zoneroot dataset"
+	SNAPCOMMENT="$(get_zone_newest_snapshot_comment "$ZONENAME")" && [ -n "$SNAPCOMMENT" ] || return
+        logmsg_info "Rolling back zone '${ZONENAME}'@'${SNAPCOMMENT}'"
+    fi
+
+    local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
+    local ZONEROOT_DS="`zfs_getDSbyMPT "${ZONEROOT_MPT}"`" || return
+
+    local WAS_MOUNTED
+    local WAS_RUNNING="`get_zone_state "$ZONENAME"`"
+
+    # Stop zone? (option to force/forbid this?)
+    if [ "$WAS_RUNNING" = running ]; then
+        logmsg_info "Stopping zone ${ZONENAME} before rollback..."
+        stop_zone "${ZONENAME}"
+    fi
+
+    if is_mounted "$ZONEROOT_MPT" ; then
+        logmsg_info "Unmounting zone ${ZONENAME} before rollback..."
+        unmount_zone "${ZONENAME}" # Can report error if zone not in mounted state
+        # Delegated datasets are not visible in GZ; they should have been
+        # handled by umount_zone(). Also below we umount non-zfs if used.
+        for D in `/bin/df -k | grep " $ZONEROOT_MPT/" | sort -r | awk '{print $NF}'` "$ZONEROOT_MPT" ; do
+            logmsg_info "Unmounting $D ..."
+            $ELEVATE_CMD umount "$D" || \
+            $ELEVATE_CMD umount -f "$D" # || return
+            # Note we do not necessarily abort here - rollbacks might
+            # be able to proceed even while datasets are mounted.
+            # If they do fail - we account for that below.
+        done
+        WAS_MOUNTED=yes
+    else
+        WAS_MOUNTED=no
+    fi
+
+    # Roll back zoneroot container dataset + delegated datasets. Per manpage:
+#       The -rR options do not recursively destroy the child snapshots of a
+#       recursive snapshot.  Only direct snapshots of the specified filesystem
+#       are destroyed by either of these options. To completely roll back a
+#       recursive snapshot, you must rollback the individual child snapshots.
+    # By grepping for slash, we ensure not-manipulation of pool root datasets
+    # due to some error, and avoid the "no datasets available" message (e.g.
+    # we do not often expect volumes to be present, but cater for them here).
+    SNAP_RES=0
+    for D in "$ZONEROOT_DS" `list_assigned_datasets ${ZONENAME}` ; do
+        for DD in $(zfs list -Honame -t filesystem -r "$D"|grep /) $(zfs list -Honame -t volume -r "$D"|grep /) ; do
+            zfs list "$DD@$SNAPCOMMENT" > /dev/null 2>&1 || \
+                { SNAP_RES=$?
+                  logmsg_warn "Snapshot $DD@$SNAPCOMMENT did not exist, can not roll back"
+                  continue; }
+            logmsg_info "Rolling back to $DD@$SNAPCOMMENT ..."
+	    zfs rollback -r "$DD@$SNAPCOMMENT" || SNAP_RES=$?
+        done
+    done
+
+    # Restart zone? (if was stopped by us)
+    if [ "$WAS_MOUNTED" = yes ]; then
+        logmsg_info "Trying to mount back datasets for ${ZONENAME}..."
+        $ELEVATE_CMD zfs mount "$ZONEROOT_DS" || \
+        $ELEVATE_CMD zfs mount "$ZONEROOT_MPT"
+    fi
+    if [ "$WAS_RUNNING" = running ]; then
+        logmsg_info "Restarting zone ${ZONENAME} after rollback, because it was running before..."
+        start_zone "${ZONENAME}"
+    fi
+    return $SNAP_RES
 }
 
 # Run a command inside the zone (via zlogin), maybe as a specified account
@@ -2051,7 +2168,10 @@ case "$ACTION" in
         check_is_managed_zone "$TARGET_ZONE" || die
         snapshot_zone "$TARGET_ZONE" "$SNAP_NAME"
         ;;
-#   rollback)
+    rollback)
+        check_is_managed_zone "$TARGET_ZONE" || die
+        rollback_zone "$TARGET_ZONE" "$SNAP_NAME"
+        ;;
 #   pkg-refresh)
 #   pkg-upgrade)
 #   pkg-install)
