@@ -1192,7 +1192,7 @@ zonecfg_snippet_auto_vnics() {
     for LVM in $AUTO_VNICS ; do
         NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] \
             || die "Failed to create VNIC by spec: $LVM"
-        VNICS="$VNICS $NEWVNIC"
+        [ -z "$VNICS" ] && VNICS="$NEWVNIC" || VNICS="$VNICS $NEWVNIC"
         zonecfg_snippet_assign_nic "$NEWVNIC"
     done
     if [ -n "$VNICS" ]; then
