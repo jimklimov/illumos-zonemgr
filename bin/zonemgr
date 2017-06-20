@@ -606,7 +606,9 @@ Actions: the last specified action is performed (so please only call one).
     pkg-install         Install packages specified in "-p" list
     pkg-uninstall       Uninstall packages specified in "-P" list
     snapshot            (Shutdown and?) Take a snapshot of target zone
+                        (requires -z and optional -s arguments)
     rollback            (Halt and) roll back the target zone to old snapshot
+                        (requires -z and optional -s arguments)
 
 NOTE: The user account running this script should be permitted to elevate
 privileges for certain operations. You can use config files to use "sudo",
