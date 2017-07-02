@@ -21,9 +21,9 @@
 # Copyright 2016-2017, Jim Klimov. All rights reserved.
 #
 
-############################################################################
+##########################################################################
 # General helpers
-############################################################################
+##########################################################################
 
 if [ -n "${BASH-}" ]; then
     # A bash-ism, should set the exitcode of the rightmost failed command
@@ -54,7 +54,8 @@ export LANG LANGUAGE LC_ALL TZ
 PATH="/sbin:/usr/sbin:/usr/bin:/usr/gnu/bin:/usr/sfw/bin:$PATH"
 export PATH
 
-### Empty and non-numeric and non-positive values should be filtered out here
+### Empty and non-numeric and non-positive values should be filtered
+### out here
 is_positive() {
     [ -n "$1" -a "$1" -gt 0 ] 2>/dev/null
 }
@@ -187,8 +188,9 @@ logmsg_run() {
 }
 
 logmsg_debug() {
-    # A script can flexibly define its different debug messages via variables
-    # with debug-levels assigned (and easily changeable) to different subjects
+    # A script can flexibly define its different debug messages via
+    # variables with debug-levels assigned (and easily changeable)
+    # to different subjects
     WANT_DEBUG_LEVEL=$ZONEMGR_DEBUGLEVEL_DEBUG
     if [ "$1" -ge 0 ] 2>/dev/null; then
         WANT_DEBUG_LEVEL="$1"
@@ -321,11 +323,12 @@ clean_exit() {
 }
 
 settraps_nonfatal() {
-    # While the legacy common settraps() wraps the caller's custom handler "$*"
-    # with an exit(), this one is not fatal by itself, and it does not subshell
-    # as it is intended to be used for interrupts, etc. And for settraps() too.
-    # It detects and presets the variables that can be used by the caller's
-    # trap handler, including one from settraps() below. Variables include:
+    # While the legacy common settraps() wraps the caller's custom handler
+    # "$*" with an exit(), this one is not fatal by itself, and it does not
+    # subshell as it is intended to be used for interrupts, etc. And for
+    # settraps() too. It detects and presets the variables that can be used
+    # by the caller's trap handler, including one from settraps() below.
+    # Variables include:
     #   ERRCODE     Number of upstream exitcode that came into the trap
     #   ERRSIGNAL   Name of the signal as registered (HUP or SIGEXIT etc.)
     #   ERRFILE     File from which the trap was called, if we can guess it
@@ -395,14 +398,16 @@ else ERRIGNORE=""; fi ;' \
 
 # These variables are tested for equality to "yes" when the trap is processed.
 #   When a trap is handled by settraps(), should any message be printed?
-[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE-}" ] && [ x"${SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE-}" != "x-" ] || \
+[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE-}" ] && \
+[ x"${SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE-}" != "x-" ] || \
     if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_ERROR" ]; then
         SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE="yes"
     else
         SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE="yes"
     fi
 #   If SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE==yes and cause is exit(0), still print?
-[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" ] && [ x"${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" != "x-" ] || \
+[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" ] && \
+[ x"${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" != "x-" ] || \
     if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_DEBUG" ]; then
         SCRIPTLIB_TRAPWRAP_PRINT_EXIT0="yes"
     else
@@ -410,7 +415,8 @@ else ERRIGNORE=""; fi ;' \
     fi
 #   If SCRIPTLIB_TRAPWRAP_PRINT_MESSAGE==yes and we have a shell with func-call
 #   history like bash, print also a stack trace of the failure?
-[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" ] && [ x"${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" != "x-" ] || \
+[ -n "${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" ] && \
+[ x"${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" != "x-" ] || \
     if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_DEBUG" ]; then
         SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE="yes"
     else
@@ -418,12 +424,13 @@ else ERRIGNORE=""; fi ;' \
     fi
 
 settraps() {
-    # Sets up or clear traps defined in $TRAP_SIGNALS (or falls back to default
-    # list of signals) to report the trap, call consumer's handler, and if that
-    # routine does not exit() the shell by itself - the wrapper would exit with
-    # either that handler's non-zero return code or with original trapped code.
-    # The ERR* variables reported here are defined by settraps_nonfatal() above
-    # Note that all output (if any) goes to stderr (see end of "if" clause).
+    # Sets up or clear traps defined in $TRAP_SIGNALS (or falls back to
+    # default list of signals) to report the trap, call consumer's handler,
+    # and if that routine does not exit() the shell by itself - the wrapper
+    # would exit with either that handler's non-zero return code or with
+    # original trapped code. The ERR* variables reported here are defined
+    # by settraps_nonfatal() above. Note that all output (if any) goes to
+    # stderr (see end of "if" clause).
     case "$1" in
         -|"") settraps_nonfatal "$1" \
             || logmsg_warn "Could not settraps_nonfatal()" ;;
@@ -436,13 +443,15 @@ settraps() {
 ; then
     echo ""
     _DO_PRINT_STACKTRACE=no
-    if [ "${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" = yes ] && [ -n "${BASH-}" ]; then
+    if [ "${SCRIPTLIB_TRAPWRAP_PRINT_STACKTRACE-}" = yes ] && \
+       [ -n "${BASH-}" ]; then
         _DO_PRINT_STACKTRACE=yes
     fi
     if [ "${ERRCODE-}" = 0 ]; then
         _DO_PRINT_STACKTRACE=no
         if [ "${SCRIPTLIB_TRAPWRAP_PRINT_EXIT0-}" = yes ] || \
-            [ "${ERRSIGNAL-}" != 0 -a "${ERRSIGNAL-}" != EXIT -a "${ERRSIGNAL-}" != SIGEXIT ] \
+            [ "${ERRSIGNAL-}" != 0 -a "${ERRSIGNAL-}" != EXIT \
+              -a "${ERRSIGNAL-}" != SIGEXIT ] \
         ; then
             LOGMSG_PREFIX="ZONEMGR-SIGNALTRAP-" logmsg_info "Completing ${ERRTEXT-}"
             _DO_PRINT_STACKTRACE=yes
@@ -459,7 +468,9 @@ settraps() {
         if [ -z "${FUNCNAME-}" ] || [ -z "${FUNCNAME[0]}" ]; then
             FUNCDEPTH=-1
         else
-            FUNCDEPTH="${#FUNCNAME[@]-}" 2>/dev/null && [ -n "$FUNCDEPTH" ] && [ "$FUNCDEPTH" -ge 0 ] || FUNCDEPTH=-1
+            FUNCDEPTH="${#FUNCNAME[@]-}" 2>/dev/null && \
+                [ -n "$FUNCDEPTH" ] && [ "$FUNCDEPTH" -ge 0 ] \
+            || FUNCDEPTH=-1
         fi
         printf "  Depth of function call stack = $FUNCDEPTH : "
         if [ "$FUNCDEPTH" -gt 0 ] 2>/dev/null; then
@@ -499,15 +510,16 @@ TBD() {
     false
 }
 
-############################################################################
+##########################################################################
 # Slurp script configs (hardcoded defaults; system, user level and
 # CLI-passed config file overrides) - e.g. container root datasets
-############################################################################
+##########################################################################
 
-# TODO: Add (and rename?) options for things supported by zone-brand scripts
-# commonly, such as installation of a zone filesystem from archives and ZFS
-# snapshots instead of packaging.
-# TODO: Support zone naming by UUID (zoneadm -u uuid), not only by name (-z)?
+# TODO: Add (and rename?) options for things supported by zone-brand
+# scripts commonly, such as installation of a zone filesystem from
+# archives and ZFS snapshots instead of packaging.
+# TODO: Support zone naming by UUID (zoneadm -u uuid), not only by
+# name (-z) which we already do support?
 usage() {
     cat << EOF
 Usage: ${_SCRIPT_NAME} (options...) (action)"
@@ -869,9 +881,9 @@ parse_config_startup() {
     ZONECFG_SCRIPT=""
 }
 
-############################################################################
+##########################################################################
 # Zone-creation task stack:
-############################################################################
+##########################################################################
 
 zfs_getDSbyMPT() {
     local MPT="$1"
@@ -1053,7 +1065,8 @@ list_zone_snapshot_datasets() {
     # e.g. zfs-auto-snap's and/or user-created snaps, to ensure
     # consistency of zoneroot and delegated datasets' comments?
     SNAPNAME="$(zfs list -tsnapshot -Honame -screation -d1 "$ZONEROOT_DS")" \
-    && [ -n "$SNAPNAME" ] || { logmsg_error "Got an error listing snapshots of $ZONEROOT_DS"; return 1; }
+        && [ -n "$SNAPNAME" ] \
+    || { logmsg_error "Got an error listing snapshots of $ZONEROOT_DS"; return 1; }
     echo "$SNAPNAME"
 }
 
@@ -1063,7 +1076,8 @@ get_zone_newest_snapshot_dataset() {
 
     SNAPNAME="$(list_zone_snapshot_datasets "$ZONENAME")" || return
     SNAPNAME="$(echo "$SNAPNAME" | tail -n 1)" \
-        && [ -n "$SNAPNAME" ] || { logmsg_error "Got an error determining newest snapshot dataset of $ZONEROOT_DS"; return 1; }
+        && [ -n "$SNAPNAME" ] \
+    || { logmsg_error "Got an error determining newest snapshot dataset of $ZONEROOT_DS"; return 1; }
     echo "$SNAPNAME"
 }
 
@@ -1076,14 +1090,15 @@ get_zone_newest_snapshot_comment() {
     local SNAPCOMMENT SNAPNAME
     SNAPNAME="$(get_zone_newest_snapshot_dataset "$ZONENAME")" || return
     SNAPCOMMENT="$(echo "$SNAPNAME" | pipe_get_snapshot_comment)" \
-        && [ -n "$SNAPCOMMENT" ] || { logmsg_error "Got an error determining comment of newest snapshot for zone $ZONENAME"; return 1; }
+        && [ -n "$SNAPCOMMENT" ] \
+    || { logmsg_error "Got an error determining comment of newest snapshot for zone $ZONENAME"; return 1; }
     echo "$SNAPCOMMENT"
 }
 
-############################################################################
+##########################################################################
 # Create the golden-image zone from scratch, if the name is not yet occupied
 # The zonecfg_snippet_*() routines print a bit of configuration for zonecfg
-############################################################################
+##########################################################################
 
 # Let specify image template type (linked, brand, etc.) to set up the config
 zonecfg_snippet_create() {
@@ -1122,10 +1137,10 @@ EOF
 
 # TBD: Consider packaging, tarballs, zfs-send images to instantiate zone root
 
-############################################################################
+##########################################################################
 # Create a golden-image zone from existing golden-image zone (clone current
 # state, last or specified snapshot):
-############################################################################
+##########################################################################
 
 # Add metadata (zonecfg field?) to track which GIZ this image was built from
 zonecfg_snippet_attr_origin() {
@@ -1158,10 +1173,10 @@ EOF
 
 # Same limitations (e.g. simplicity of config) as above
 
-############################################################################
+##########################################################################
 # Create a disposable zone from specified golden-image zone (clone current
 # state, last or specified snapshot):
-############################################################################
+##########################################################################
 
 # Manage VNICs?
 create_vnic() {
@@ -1214,7 +1229,8 @@ list_auto_vnics_all() {
 list_auto_vnics_zonecfg() {
     local DSNAME="$1"
     #$ELEVATE_CMD \
-    zonecfg -z "$DSNAME" "info attr name=autovnic" | grep -v 'No such attr resource'
+    zonecfg -z "$DSNAME" "info attr name=autovnic" \
+        | grep -v 'No such attr resource'
     #TBD # test this on various unsuspecting victims
 }
 
@@ -1438,9 +1454,9 @@ setup_ldap() {
     TBD
 }
 
-############################################################################
+##########################################################################
 # General maintenance actions:
-############################################################################
+##########################################################################
 
 # List all managed, or only GIZ/only DIZ zones (zones with roots under our
 # container datasets)
@@ -1530,7 +1546,8 @@ is_managed_zone() {
 
 check_is_managed_zone() {
     local ZONENAME="$1"
-    [ -n "$ZONENAME" ] || { logmsg_error "No zone specified, while asked to inspect it" ; return 1; }
+    [ -n "$ZONENAME" ] || \
+        { logmsg_error "No zone specified, while asked to inspect it" ; return 1; }
     if ! is_managed_zone "$@" ; then
         logmsg_error "Can not confirm that zone '$*' can be managed by this script"
         return 1
@@ -1558,9 +1575,9 @@ upgrade_zones_giz() {
     done
 }
 
-############################################################################
+##########################################################################
 # General actions against any managed zones (GIZ or DIZ):
-############################################################################
+##########################################################################
 
 # Generate a unique name-part for the zone (hash of concat of sorted requested
 # pkg names?) that may get prefixed and/or suffixed for GIZ and DIZ instances
@@ -1951,7 +1968,8 @@ rollback_zone() {
 
     if [ -z "$SNAPCOMMENT" ] ; then
         logmsg_info "No snapshot comment specified for the zone, using newest snapshot of zoneroot dataset"
-	SNAPCOMMENT="$(get_zone_newest_snapshot_comment "$ZONENAME")" && [ -n "$SNAPCOMMENT" ] || return
+        SNAPCOMMENT="$(get_zone_newest_snapshot_comment "$ZONENAME")" \
+            && [ -n "$SNAPCOMMENT" ] || return
         logmsg_info "Rolling back zone '${ZONENAME}'@'${SNAPCOMMENT}'"
     fi
 
@@ -1972,7 +1990,10 @@ rollback_zone() {
         unmount_zone "${ZONENAME}" # Can report error if zone not in mounted state
         # Delegated datasets are not visible in GZ; they should have been
         # handled by umount_zone(). Also below we umount non-zfs if used.
-        for D in `/bin/df -k | grep " $ZONEROOT_MPT/" | sort -r | awk '{print $NF}'` "$ZONEROOT_MPT" ; do
+        for D in \
+            `/bin/df -k | grep " $ZONEROOT_MPT/" | sort -r | awk '{print $NF}'` \
+            "$ZONEROOT_MPT" \
+        ; do
             logmsg_info "Unmounting $D ..."
             $ELEVATE_CMD umount "$D" || \
             $ELEVATE_CMD umount -f "$D" # || return
@@ -2047,9 +2068,9 @@ run_in_zone() {
     return $RUN_RES
 }
 
-############################################################################
+##########################################################################
 # Wrap the single-use zone routine
-############################################################################
+##########################################################################
 diz_run() {
     # Create the DIZ, boot it, run the command, halt, destroy (e.g. one build)
     # Stop gracefully just in case something is saved to external storage?
