@@ -1374,9 +1374,13 @@ zonecfg_snippet_assign_autonfs_list() {
 
 # Scripted cloning of file-based user/shadow and group account data from GZ
 # to LZ for respective specified accounts. Note that (stub for) LDAP is below.
+# TBD: Set up root password, at least for initial GIZ
+# TBD: support togglig root as user/role?
+# TBD: maybe support other sysidcfg or equivalent?
 clone_group() {
     # TODO: By construction, this routine now requires "root" to run it.
     # If this proves a bottleneck, find a way to elevate privs to do the job.
+    # Perhaps mount/ready the zone, "$ELEVATE_CMD zlogin -S" to fix it up...
     local G="$1"
     local _G
 
