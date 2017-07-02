@@ -1132,8 +1132,9 @@ EOF
 }
 
 # TBD: Let specify package source(s) - URL to IPS repo, possibly just one
-# publisher may be allowed for initial installation, but more may be added
-# after initial "image" setup
+# publisher may be allowed for initial installation (depends on illumos
+# distro ad zone brand - eg. linked-image zones inherit the whole set of
+# publishers from GZ), but more may be added after initial "image" setup.
 
 # TBD: Consider packaging, tarballs, zfs-send images to instantiate zone root
 
@@ -1142,7 +1143,7 @@ EOF
 # state, last or specified snapshot):
 ##########################################################################
 
-# Add metadata (zonecfg field?) to track which GIZ this image was built from
+# Add metadata (zonecfg field) to track which GIZ this image was built from
 zonecfg_snippet_attr_origin() {
     VAL="undefined"
     if [ -n "$ORIGIN_GIZ" ] ; then
@@ -1237,9 +1238,9 @@ list_auto_vnics_zonecfg() {
 list_auto_vnics_orphaned() {
     TBD
     # Inspect "claimed" vnics: start with list_auto_vnics_all() and cut off:
-    # "autovnic" linkprops in each known zone
-    # any nics delegated into each known zone
-    # vnics with a "zoned" attribute currently
+    # * "autovnic" linkprops in each known zone
+    # * any nics delegated into each known zone
+    # * vnics with a "zoned" attribute currently
 }
 
 # Add resource definitions (datasets/lofs, network, user accounts/ldap, ...)
@@ -1904,6 +1905,15 @@ reboot_zone() {
     zone_action reboot "$ZONENAME"
 }
 
+# Note that operational states like "ready" and "mounted" are not visible
+# from "zoneadm list" or /etc/zones/index - but they are visible in error
+# messages when trying to change the zone state and request is invalid, e.g.:
+#   zone 'test-giz-1': mount operation is invalid for zones in state 'ready'
+#   zone 'test-giz-1': ready operation is invalid for zones in state 'mounted'
+#   zone 'test-giz-1': mount operation is invalid for zones in state 'mounted'
+#   zoneadm: zone 'test-giz-1': must be mounted before unmount.
+#   zone 'test-giz-1': mount operation is invalid for zones in state 'running'
+# Also note that of these, only "ready" is documented as a stable interface.
 ready_zone() {
     local ZONENAME="$1"
     zone_action ready "$ZONENAME"
@@ -1954,11 +1964,12 @@ destroy_zone() {
     done
 }
 
-# Halt* and roll back to specified or most-recent snapshot (e.g. reuse same
-# blank zone content for another job). Note that technically the most-recent
-# snapshot may be that of a most-recent GZ OS update, not of the stable state
-# after last zone install/update as may be intended by sysadmin.
-# *Rollback a zone, halt and restart if was running
+# Halt the zone if it was running, roll back to specified or most-recent
+# snapshot (e.g. to reuse same blank zone content for another end-user
+# job like a build), and restart if it was running. Note that technically
+# the most-recent snapshot may be that of a most-recent GZ OS update, not
+# of the stable state after last zone install/update as may be intended by
+# sysadmin.
 rollback_zone() {
     local ZONENAME="$1"
     local SNAPCOMMENT="$2"
