@@ -631,7 +631,7 @@ or better stick with default "pfexec" and set up Solaris RBAC for the account:
 EOF
 }
 
-if [ $# = 0 ]; then
+if [ $# = 0 ] && [ -z "${ZONEMGR_IS_INCLUDED-}" ] ; then
     echo "ERROR: No (valid) required arguments were provided" >&2
     usage
     exit 1
@@ -2101,141 +2101,150 @@ diz_run() {
     return $DIZ_RUN_RES
 }
 
-############################################################################
-# Do the run-time work
-############################################################################
+do_zonemgr() {
+    ##########################################################################
+    # Do the run-time work
+    ##########################################################################
 
-# Allow to togle shell-tracing in ZONEMGR-driven builds more easily
-if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_TRACEEXEC" ] ; then
-    logmsg_info "ZONEMGR_DEBUG is $ZONEMGR_DEBUG >= $ZONEMGR_DEBUGLEVEL_TRACEEXEC : enabling source-code tracing!" >&2
-    set -x
+    # Allow to togle shell-tracing in ZONEMGR-driven builds more easily
+    if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_TRACEEXEC" ] ; then
+        logmsg_info "ZONEMGR_DEBUG is $ZONEMGR_DEBUG >= $ZONEMGR_DEBUGLEVEL_TRACEEXEC : enabling source-code tracing!" >&2
+        set -x
+    fi
+
+    settraps "exit_cleanup"
+
+    parse_config_startup "$@"
+
+    # CLI args or config files could change the setting
+    if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_TRACEEXEC" ] ; then
+        logmsg_info "ZONEMGR_DEBUG is $ZONEMGR_DEBUG >= $ZONEMGR_DEBUGLEVEL_TRACEEXEC : enabling source-code tracing!" >&2
+        set -x
+    fi
+
+    # Make sure container-datasets are available
+    logmsg_info "Ensuring availability of container dataset for GIZes"
+    create_dataset_containment_GIZ
+    DATASET_CONTAINMENT_GIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_GIZ")" \
+        && [ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
+        || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
+    df -k "$DATASET_CONTAINMENT_GIZ_MPT" 2>/dev/null >/dev/null \
+        || die "Not mounted: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
+
+    logmsg_info "Ensuring availability of container dataset for DIZes"
+    create_dataset_containment_DIZ
+    DATASET_CONTAINMENT_DIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_DIZ")" \
+        && [ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
+        || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
+    df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null >/dev/null \
+        || die "Not mounted: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
+
+    # Remember to use check_is_managed_zone() before acting on existing zones
+    case "$ACTION" in
+        create-giz)
+            install_zone ;;
+        create-diz)
+            # Would first create a matching GIZ if missing
+            clone_zone ;;
+        list)
+            logmsg_info "Listing all managed zones..."
+            list_zones_managed_all || clean_exit "No such zones were found" ;;
+        list-giz)
+            logmsg_info "Listing GIZ managed zones..."
+            list_zones_managed_giz || clean_exit "No such zones were found" ;;
+        list-diz)
+            logmsg_info "Listing DIZ managed zones..."
+            list_zones_managed_diz || clean_exit "No such zones were found" ;;
+        is-managed-any)
+            [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
+            if is_managed_zone "$TARGET_ZONE" ; then
+                logmsg_info "Zone '$TARGET_ZONE' exists and is manageable by this script"
+            else
+                logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script"
+                clean_exit 1
+            fi
+            ;;
+        is-managed-diz)
+            [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
+            if is_managed_zone_diz "$TARGET_ZONE" ; then
+                logmsg_info "Zone '$TARGET_ZONE' exists and is a DIZ manageable by this script"
+            else
+                logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a DIZ"
+                clean_exit 1
+            fi
+            ;;
+        is-managed-giz)
+            [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
+            if is_managed_zone_giz "$TARGET_ZONE" ; then
+                logmsg_info "Zone '$TARGET_ZONE' exists and is a GIZ manageable by this script"
+            else
+                logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a GIZ"
+                clean_exit 1
+            fi
+            ;;
+        verify)
+            [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
+            if verify_zone "$TARGET_ZONE" ; then
+                logmsg_info "Zone '$TARGET_ZONE' exists, has valid manifest and is manageable by this script"
+            else
+                logmsg_warn "Zone '$TARGET_ZONE' does not exist, has broken manifest, or is not manageable by this script"
+                clean_exit 1
+            fi
+            ;;
+        destroy)
+            check_is_managed_zone "$TARGET_ZONE" || die
+            destroy_zone "$TARGET_ZONE"
+            ;;
+        snapshot)
+            check_is_managed_zone "$TARGET_ZONE" || die
+            snapshot_zone "$TARGET_ZONE" "$SNAP_NAME"
+            ;;
+        rollback)
+            check_is_managed_zone "$TARGET_ZONE" || die
+            rollback_zone "$TARGET_ZONE" "$SNAP_NAME"
+            ;;
+        list-snapshots)
+            check_is_managed_zone "$TARGET_ZONE" || die
+            list_zone_snapshot_datasets "$TARGET_ZONE" | pipe_get_snapshot_comment || die
+            ;;
+    #   pkg-refresh)
+    #   pkg-upgrade)
+    #   pkg-install)
+    #   pkg-uninstall)
+        exec)
+            check_is_managed_zone "$TARGET_ZONE" || die
+            secure_assigned_datasets "${TARGET_ZONE}"
+            OLD_ZONE_STATE="`get_zone_state "$TARGET_ZONE"`"
+            if [ "$OLD_ZONE_STATE" != running ] ; then
+                start_zone "$TARGET_ZONE" || die
+            fi
+            RUN_RES=0
+            run_in_zone || RUN_RES=$?
+            if [ "$OLD_ZONE_STATE" != running ] ; then
+                stop_zone "$TARGET_ZONE" || die
+            fi
+            clean_exit $RUN_RES
+            ;;
+        exec-diz)
+            diz_run ;;
+        boot|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
+            eval "$ACTION"_zone "$TARGET_ZONE" \
+                || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
+            ;;
+        "") echo "ERROR: No (valid) required arguments were provided" >&2
+            usage
+            exit 1
+            ;;
+        *) echo "DEBUG: Would do ACTION='$ACTION' but this is not implemented (yet?)" >&2 ; exit 1 ;;
+    esac
+
+    clean_exit
+}
+
+### Support including this file into other tools or a scripted test suite
+if [ -z "${ZONEMGR_IS_INCLUDED-}" ] ; then
+    do_zonemgr "$@"
+    exit
 fi
-
-settraps "exit_cleanup"
-
-parse_config_startup "$@"
-
-# CLI args or config files could change the setting
-if [ "$ZONEMGR_DEBUG" -ge "$ZONEMGR_DEBUGLEVEL_TRACEEXEC" ] ; then
-    logmsg_info "ZONEMGR_DEBUG is $ZONEMGR_DEBUG >= $ZONEMGR_DEBUGLEVEL_TRACEEXEC : enabling source-code tracing!" >&2
-    set -x
-fi
-
-# Make sure container-datasets are available
-logmsg_info "Ensuring availability of container dataset for GIZes"
-create_dataset_containment_GIZ
-DATASET_CONTAINMENT_GIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_GIZ")" \
-    && [ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
-    || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
-df -k "$DATASET_CONTAINMENT_GIZ_MPT" 2>/dev/null >/dev/null \
-    || die "Not mounted: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
-
-logmsg_info "Ensuring availability of container dataset for DIZes"
-create_dataset_containment_DIZ
-DATASET_CONTAINMENT_DIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_DIZ")" \
-    && [ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
-    || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
-df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null >/dev/null \
-    || die "Not mounted: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
-
-# Remember to use check_is_managed_zone() before acting on existing zones
-case "$ACTION" in
-    create-giz)
-        install_zone ;;
-    create-diz)
-        # Would first create a matching GIZ if missing
-        clone_zone ;;
-    list)
-        logmsg_info "Listing all managed zones..."
-        list_zones_managed_all || clean_exit "No such zones were found" ;;
-    list-giz)
-        logmsg_info "Listing GIZ managed zones..."
-        list_zones_managed_giz || clean_exit "No such zones were found" ;;
-    list-diz)
-        logmsg_info "Listing DIZ managed zones..."
-        list_zones_managed_diz || clean_exit "No such zones were found" ;;
-    is-managed-any)
-        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
-        if is_managed_zone "$TARGET_ZONE" ; then
-            logmsg_info "Zone '$TARGET_ZONE' exists and is manageable by this script"
-        else
-            logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script"
-            clean_exit 1
-        fi
-        ;;
-    is-managed-diz)
-        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
-        if is_managed_zone_diz "$TARGET_ZONE" ; then
-            logmsg_info "Zone '$TARGET_ZONE' exists and is a DIZ manageable by this script"
-        else
-            logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a DIZ"
-            clean_exit 1
-        fi
-        ;;
-    is-managed-giz)
-        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
-        if is_managed_zone_giz "$TARGET_ZONE" ; then
-            logmsg_info "Zone '$TARGET_ZONE' exists and is a GIZ manageable by this script"
-        else
-            logmsg_warn "Zone '$TARGET_ZONE' does not exist or is not manageable by this script as a GIZ"
-            clean_exit 1
-        fi
-        ;;
-    verify)
-        [ -n "$TARGET_ZONE" ] || die "No zone specified, while required for action '$ACTION'"
-        if verify_zone "$TARGET_ZONE" ; then
-            logmsg_info "Zone '$TARGET_ZONE' exists, has valid manifest and is manageable by this script"
-        else
-            logmsg_warn "Zone '$TARGET_ZONE' does not exist, has broken manifest, or is not manageable by this script"
-            clean_exit 1
-        fi
-        ;;
-    destroy)
-        check_is_managed_zone "$TARGET_ZONE" || die
-        destroy_zone "$TARGET_ZONE"
-        ;;
-    snapshot)
-        check_is_managed_zone "$TARGET_ZONE" || die
-        snapshot_zone "$TARGET_ZONE" "$SNAP_NAME"
-        ;;
-    rollback)
-        check_is_managed_zone "$TARGET_ZONE" || die
-        rollback_zone "$TARGET_ZONE" "$SNAP_NAME"
-        ;;
-    list-snapshots)
-        check_is_managed_zone "$TARGET_ZONE" || die
-        list_zone_snapshot_datasets "$TARGET_ZONE" | pipe_get_snapshot_comment || die
-        ;;
-#   pkg-refresh)
-#   pkg-upgrade)
-#   pkg-install)
-#   pkg-uninstall)
-    exec)
-        check_is_managed_zone "$TARGET_ZONE" || die
-        secure_assigned_datasets "${TARGET_ZONE}"
-        OLD_ZONE_STATE="`get_zone_state "$TARGET_ZONE"`"
-        if [ "$OLD_ZONE_STATE" != running ] ; then
-            start_zone "$TARGET_ZONE" || die
-        fi
-        RUN_RES=0
-        run_in_zone || RUN_RES=$?
-        if [ "$OLD_ZONE_STATE" != running ] ; then
-            stop_zone "$TARGET_ZONE" || die
-        fi
-        clean_exit $RUN_RES
-        ;;
-    exec-diz)
-        diz_run ;;
-    boot|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
-        eval "$ACTION"_zone "$TARGET_ZONE" \
-            || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
-        ;;
-    "") echo "ERROR: No (valid) required arguments were provided" >&2
-        usage
-        exit 1
-        ;;
-    *) echo "DEBUG: Would do ACTION='$ACTION' but this is not implemented (yet?)" >&2 ; exit 1 ;;
-esac
-
-clean_exit
+true
 
