@@ -1372,8 +1372,10 @@ zonecfg_snippet_assign_autonfs_list() {
 }
 
 # Scripted cloning of file-based user/shadow and group account data from GZ
-# to LZ for respective specified accounts
+# to LZ for respective specified accounts. Note that (stub for) LDAP is below.
 clone_group() {
+    # TODO: By construction, this routine now requires "root" to run it.
+    # If this proves a bottleneck, find a way to elevate privs to do the job.
     local G="$1"
     local _G
 
@@ -1392,18 +1394,19 @@ clone_group() {
     else
         echo "$_G" >> "${ALTROOT}/etc/group"
     fi
-
 }
 
 clone_user() {
+    # TODO: By construction, this routine now requires "root" to run it.
+    # If this proves a bottleneck, find a way to elevate privs to do the job.
     local U="$1"
     local _P _S
 
-    _P="$(egrep "^$U:" "/etc/passwd")" || \
+    _P="$($ELEVATE_CMD egrep "^$U:" "/etc/passwd")" || \
         die "Can not replicate unknown user '$U' from the host!"
 
-    _S="$(egrep "^$U:" "/etc/shadow")" || \
-        _S="$U:NP:::::::"
+    _S="$($ELEVATE_CMD egrep "^$U:" "/etc/shadow")" || \
+        { _S="$U:NP:::::::"; logmsg_warn "Can not read password hash of user account '$U' on the host, using an initial NP account setting in the zone!"; }
 
     getALTROOT && \
     [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
@@ -1426,8 +1429,6 @@ clone_user() {
     else
         echo "$_S" >> "${ALTROOT}/etc/shadow"
     fi
-
-
 }
 
 clone_groups() {
