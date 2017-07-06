@@ -1213,6 +1213,8 @@ create_vnic() {
 }
 
 delete_vnic() {
+    # routine to remove a VNIC definition from host OS (global zone)
+    # TODO: sanity-check input for "auto?iz*" VNICs?
     local NICNAME="$1"
     $ELEVATE_CMD dladm delete-vnic "$NICNAME"
 }
@@ -1228,10 +1230,27 @@ list_auto_vnics_all() {
 }
 
 list_auto_vnics_zonecfg() {
-    local DSNAME="$1"
-    #$ELEVATE_CMD \
-    zonecfg -z "$DSNAME" "info attr name=autovnic" \
-        | grep -v 'No such attr resource'
+    local ZONENAME="$1"
+    local OUT=""
+
+    OUT="$(zonecfg -z "$ZONENAME" "info attr name=autovnic")" \
+    && [ -n "$OUT" ] || return $?
+
+    if echo "$OUT" | grep 'No such attr resource' >/dev/null 2>/dev/null ; then
+        # No such attr - vnics never defined?
+        return 0
+    fi
+
+    # Error here is missing token/unexpected markup
+    OUT="$(echo "$OUT" | grep value:)" \
+    && OUT="$(echo "$OUT" | sed 's,^[ \t]*value:[ \t]*\(.*\)$,\1,')" \
+    && [ -n "$OUT" ] || return $?
+
+    # NOTE: We assume an empty output here a valid one - no autovnics
+    OUT="$(echo "$OUT" | sed 's,^\" *\(.*\) *\"$,\1,')" \
+    || return $?
+
+    echo "$OUT"
     #TBD # test this on various unsuspecting victims
 }
 
@@ -1241,6 +1260,55 @@ list_auto_vnics_orphaned() {
     # * "autovnic" linkprops in each known zone
     # * any nics delegated into each known zone
     # * vnics with a "zoned" attribute currently
+}
+
+# TBD: routine to remove VNIC config files from zone contents
+# (hostname.INST, dhcp.INST, maybe dladm/nwam/... config edit, /etc/hosts?)
+remove_vnic_zonecfg() {
+    # routine to remove VNIC snippet from zonecfg
+    local ZONENAME="$1"
+    local NICNAME="$2"
+    local CLEAN_AUTOVNIC="$3"
+    check_is_managed_zone "$ZONENAME" || return $?
+    [ -n "$NICNAME" ] || return $?
+
+    $ELEVATE_CMD \
+    zonecfg -z "$ZONENAME" "remove net physical=$NICNAME"
+
+    if [ "$CLEAN_AUTOVNIC" != "quick" ] ; then
+        TBD # Remove from autovnic property too, if asked
+    fi
+}
+
+delete_vnics_zone() {
+    # Remove ALL of the host (GZ) VNICs previously given to this zone
+    local ZONENAME="$1"
+    check_is_managed_zone "$ZONENAME" || return $?
+    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
+    local V
+
+    [ -n "$DELEGATED_VNICS" ] && \
+    logmsg_info "Removing auto-VNICs from host: $DELEGATED_VNICS" && \
+    for V in $DELEGATED_VNICS ; do
+        delete_vnic "$V"
+    done
+}
+
+remove_vnic_zonecfg_all() {
+    # routine to remove VNIC snippet from zonecfg
+    local ZONENAME="$1"
+    check_is_managed_zone "$ZONENAME" || return $?
+    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
+    local V
+
+    [ -n "$DELEGATED_VNICS" ] && \
+    logmsg_info "Removing auto-VNICs from zone '$ZONENAME' config: $DELEGATED_VNICS" && \
+    for V in $DELEGATED_VNICS ; do
+        remove_vnic_zonecfg "$Z" "$V" "quick"
+    done
+
+    $ELEVATE_CMD \
+    zonecfg -z "$ZONENAME" "remove attr name=autovnic"
 }
 
 # Add resource definitions (datasets/lofs, network, user accounts/ldap, ...)
@@ -1259,14 +1327,26 @@ EOF
     # infra zones like firewalls/routers based on a common dummy...
 }
 
-zonecfg_snippet_auto_vnics() {
-    VNICS=""
-    for LVM in $AUTO_VNICS ; do
+zonecfg_snippet_assign_auto_vnics() {
+    local VNICS
+    local LVM_LIST="$*"
+    if [ $# = 0 ] || [ -z "$LVM_LIST" ]; then
+        LVM_LIST="$AUTO_VNICS"
+    fi
+
+    # Find all previously defined VNICs (if any) to append to their list.
+    # If any are present, wipe the list before we'd "add" the attribute.
+    VNICS="$(list_auto_vnics_zonecfg "${TARGET_ZONE}")" 2>/dev/null \
+    && [ -n "$VNICS" ] && echo "remove attr name=autovnic" \
+    || VNICS=""
+
+    for LVM in $LVM_LIST ; do
         NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] \
             || die "Failed to create VNIC by spec: $LVM"
         [ -z "$VNICS" ] && VNICS="$NEWVNIC" || VNICS="$VNICS $NEWVNIC"
         zonecfg_snippet_assign_nic "$NEWVNIC"
     done
+
     if [ -n "$VNICS" ]; then
          cat << EOF
 add attr
@@ -1623,7 +1703,7 @@ generate_zonecfg_snippets() {
     # TBD: Should a GIZ have no auto-vnics? Or can it have some,
     # just like datasets for DIZ's to replicate too when cloning?
     #[ "$ACTION" = create-diz ] && \
-    zonecfg_snippet_auto_vnics
+    zonecfg_snippet_assign_auto_vnics
 
     zonecfg_snippet_assign_dataset_list "$ADD_DELEGATED_DATASET"
     zonecfg_snippet_assign_lofs_list "$ADD_MOUNT_LOFS"
@@ -1941,7 +2021,8 @@ destroy_zone() {
     local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
     local ZONEROOT_DS="`zfs_getDSbyMPT "${ZONEROOT_MPT}"`" || return
     local DELEGATED_DATASETS="`list_assigned_datasets ${ZONENAME}`"
-    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
+
+    delete_vnics_zone "$ZONENAME"
 
     stop_zone "$ZONENAME"
     unmount_zone "$ZONENAME"
@@ -1950,12 +2031,6 @@ destroy_zone() {
     $ELEVATE_CMD zoneadm -z "$ZONENAME" uninstall -F
     logmsg_info "Removing configuration of zone '$ZONENAME'..."
     $ELEVATE_CMD zonecfg -z "$ZONENAME" delete -F
-
-    [ -n "$DELEGATED_VNICS" ] && \
-    logmsg_info "Removing auto-VNICs: $DELEGATED_VNICS" && \
-    for V in $DELEGATED_VNICS ; do
-        delete_vnic "$V"
-    done
 
     local D
     for D in "$ZONEROOT_DS" $DELEGATED_DATASETS ; do
