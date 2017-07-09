@@ -1367,12 +1367,29 @@ end
 EOF
 }
 
+zonecfg_snippet_unassign_dataset() {
+    # Just stop listing the delegated dataset in this zone config
+    # This does not remove or change the ZFS dataset itself
+    local DSNAME="$1"
+    echo "remove dataset name=$DSNAME"
+}
+
 zonecfg_snippet_assign_dataset_list() {
     # $1 == ADD_DELEGATED_DATASET, a whitespace-separated list
     if [ -n "$1" ]; then
         local DSNAME
         for DSNAME in $1 ; do
 	    zonecfg_snippet_assign_dataset "$DSNAME"
+        done
+    fi
+}
+
+zonecfg_snippet_unassign_dataset_list() {
+    # $1 == ADD_DELEGATED_DATASET, a whitespace-separated list
+    if [ -n "$1" ]; then
+        local DSNAME
+        for DSNAME in $1 ; do
+	    zonecfg_snippet_unassign_dataset "$DSNAME"
         done
     fi
 }
@@ -1438,8 +1455,9 @@ zonecfg_snippet_assign_lofs_list() {
 }
 
 zonecfg_snippet_assign_autonfs_list() {
-    TBD # Decide how to implement autonfs better, including installation and
-	# enablement of the autofs and nfs/client services. Oh, and configs.
+    TBD # Decide how to implement autonfs better, including installation
+    # and enablement of the autofs and nfs/client services.
+    # Oh, and configs. And /etc/hosts or DNS or ldap naming, perhaps...
 
     # $1 = $ADD_MOUNT_AUTONFS, list of "lzpath|NFSurl lzpath2|NFSurl2 ..."
     local LZPATH NFSURL L_N
@@ -1756,7 +1774,13 @@ snapshot_zone() {
         WAS_MOUNTED=no
     fi
     if is_mounted "$ZONEROOT_MPT" ; then
-        $ELEVATE_CMD zoneadm -z "$ZONENAME" detach -n > "$ZONEROOT_MPT/$ZONENAME.xml"
+        logmsg_info "Exporting zone config"
+        # TBD : this redirection requires root access
+        local ZONECFG
+        ZONECFG="$($ELEVATE_CMD /bin/sh -c "zoneadm -z '$ZONENAME' detach -n")"
+        echo "$ZONECFG" > /tmp/xxxy
+        $ELEVATE_CMD /bin/sh -c "cp /tmp/xxxy '$ZONEROOT_MPT/$ZONENAME.xml'"
+        rm /tmp/xxxy
     fi
     if [ "$WAS_MOUNTED" = no ]; then
         $ELEVATE_CMD zfs umount "$ZONEROOT_MPT"
@@ -1767,7 +1791,7 @@ snapshot_zone() {
     SNAP_RES=0
     for D in "$ZONEROOT_DS" `list_assigned_datasets ${ZONENAME}` ; do
         zfs list "$D@$SNAPCOMMENT" > /dev/null 2>&1 || \
-        zfs snapshot -r "$D@$SNAPCOMMENT" || SNAP_RES=$?
+        $ELEVATE_CMD zfs snapshot -r "$D@$SNAPCOMMENT" || SNAP_RES=$?
     done
 
     # Restart zone? (if was stopped by us)
@@ -1787,7 +1811,10 @@ verify_zone() {
 }
 
 install_zone() {
-    [ -n "$TARGET_ZONE" ] || TARGET_ZONE="$(generate_zonename)"
+    if [ -z "$TARGET_ZONE" ] ; then
+        TARGET_ZONE="$(generate_zonename)"
+        logmsg_warn "A TARGET_ZONE name was not provided, generated '$TARGET_ZONE'"
+    fi
     if check_is_managed_zone "$TARGET_ZONE" ; then
         die "Could not configure zone '$TARGET_ZONE': it already exists, destroy it first if needed"
         # TBD: forcing or re-creation is not supported by the script... should it be?
@@ -1831,7 +1858,32 @@ $ZONECFG_SCRIPT
 # This may become a better tuned and flexible solution than "zoneadm clone"
 clone_zone() {
     # If TARGET_ZONE is not set, generate one
-    # If ORIGIN_ZONE is not set, install it first and then clone it here
+    if [ -z "$TARGET_ZONE" ] ; then
+        TARGET_ZONE="$(generate_zonename)"
+        logmsg_warn "A TARGET_ZONE name was not provided, generated '$TARGET_ZONE'"
+    fi
+    if check_is_managed_zone "$TARGET_ZONE" ; then
+        die "Could not configure zone '$TARGET_ZONE': it already exists, destroy it first if needed"
+        # TBD: forcing or re-creation is not supported by the script... should it be?
+    fi
+
+    # If ORIGIN_ZONE is not set or is missing, install it first and
+    # then clone it here - so we can later quickly spawn same setups
+    if [ -z "$ORIGIN_ZONE" ]; then
+        ORIGIN_ZONE="$(generate_zonename)"
+        logmsg_warn "An ORIGIN_ZONE name was not provided, generated '$ORIGIN_ZONE'"
+    fi
+
+    if ! check_is_managed_zone "$ORIGIN_ZONE" ; then
+        # TBD: Here we check if a zone by this name is not installed at all
+        # and do not look at the type (GIZ/DIZ). Not sure yet if this is a
+        # desirable behavior (should we let clone DIZ if asked explicitly)?
+        logmsg_info "An ORIGIN_ZONE='$ORIGIN_ZONE' was not installed," \
+            "preparing it as a GIZ to clone later into TARGET_ZONE='$TARGET_ZONE' DIZ"
+        ( TARGET_ZONE="$ORIGIN_ZONE" ; install_zone ) \
+            || die "FAILED to install an ORIGIN_ZONE='$ORIGIN_ZONE'"
+    fi
+
     TBD
     # If using existing snapshot, use the stashed copy of that older
     # zone config as template (if differs from current) - create
@@ -2105,6 +2157,13 @@ rollback_zone() {
     # By grepping for slash, we ensure not-manipulation of pool root datasets
     # due to some error, and avoid the "no datasets available" message (e.g.
     # we do not often expect volumes to be present, but cater for them here).
+
+    # NOTE: This operation might fail when other datasets are cloned off
+    # newer snapshots (e.g. reverting a GIZ from which DIZ's are already
+    # instantiated). This can be amended by "zfs promote" so the lineage
+    # of snapshots is reassigned to another head dataset and this one
+    # becomes its (removable) clone, but such changes should be decided
+    # and done by a human admin - so we do not automate them here now.
     SNAP_RES=0
     for D in "$ZONEROOT_DS" `list_assigned_datasets ${ZONENAME}` ; do
         for DD in $(zfs list -Honame -t filesystem -r "$D"|grep /) $(zfs list -Honame -t volume -r "$D"|grep /) ; do
@@ -2116,6 +2175,9 @@ rollback_zone() {
 	    zfs rollback -r "$DD@$SNAPCOMMENT" || SNAP_RES=$?
         done
     done
+    [ "$SNAP_RES" = 0 ] || \
+        logmsg_warn "Could not roll back some datasets, seek details above." \
+        "Maybe you need to zfs-promote datasets for a clone of this zone?"
 
     # Restart zone? (if was stopped by us)
     if [ "$WAS_MOUNTED" = yes ]; then
@@ -2123,6 +2185,17 @@ rollback_zone() {
         $ELEVATE_CMD zfs mount "$ZONEROOT_DS" || \
         $ELEVATE_CMD zfs mount "$ZONEROOT_MPT"
     fi
+
+    # Check if zoneconfig now differs from one in the snapshot,
+    # reapply old config if needed.
+    if [ -s "$ZONEROOT_MPT/$ZONENAME.xml" ] ; then
+        $ELEVATE_CMD zoneadm -z "$ZONENAME" detach -n > "$ZONEROOT_MPT/$ZONENAME.xml.new"
+        if ! diff "$ZONEROOT_MPT/$ZONENAME.xml" "$ZONEROOT_MPT/$ZONENAME.xml.new" >/dev/null ; then
+            logmsg_info "Zone configuration of ${ZONENAME} differs from what we had in the past"
+            TBD # Attach? Pass copies of whole zonecfg xml's or export's?
+        fi
+    fi
+
     if [ "$WAS_RUNNING" = running ]; then
         logmsg_info "Restarting zone ${ZONENAME} after rollback, because it was running before..."
         start_zone "${ZONENAME}"
