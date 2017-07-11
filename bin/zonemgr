@@ -914,8 +914,8 @@ zfs_dataset_exists() {
 }
 
 is_mounted() {
-    # $1 can be either DS or MPT, and technically a substring of either
-    mount | grep "$1" > /dev/null
+    # $1 can be either DS or MPT, and technically any other string in `mount`
+    mount | egrep "(^$1 | $1 )" > /dev/null
 }
 
 zfs_create_recursive() {
