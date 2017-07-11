@@ -1181,6 +1181,7 @@ EOF
 
 # Manage VNICs?
 create_vnic() {
+    # Defines a VNIC on the host using specified LINK and maybe other attrs
     # Input value is "LINK[|VLAN[|MAC]]" string with returned vnic name
     # based on the value of TARGET_ZONE (if present).
     # Output: echoes the vnic name if successfully created
@@ -1220,7 +1221,8 @@ delete_vnic() {
 }
 
 # TBD: Destroy the VNIC when scrapping the zone, but do not use
-# temporary VNICs (-t) which only last until reboot... and/or 
+# temporary VNICs (-t) which only last until reboot... or perhaps
+# do so - and require "start_zone()" with support for autovnic, and/or
 # TBD: add a way to find and wipe orphaned auto-vnics (not configured
 # in any known zone, not necessarily running, and not with a "zoned"
 # linkprop) as e.g. a cron job.
@@ -1230,6 +1232,8 @@ list_auto_vnics_all() {
 }
 
 list_auto_vnics_zonecfg() {
+    # Returns the chomped value of autovnic attr that is a space-separated
+    # list of NICNAME[|LINK[|VLAN[|MAC]]] entries
     local ZONENAME="$1"
     local OUT=""
 
@@ -1276,15 +1280,36 @@ remove_vnic_zonecfg() {
     zonecfg -z "$ZONENAME" "remove net physical=$NICNAME"
 
     if [ "$CLEAN_AUTOVNIC" != "quick" ] ; then
-        TBD # Remove from autovnic property too, if asked
+        # Remove from autovnic property too, if asked
+        local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
+        if [ -n "$DELEGATED_VNICS" ]; then
+            #TBD # Better parsing needed in this chain - not all cases were
+                 # caught (e.g. only NICNAME w/o attrs)... and now?
+            DELEGATED_VNICS="`echo " $DELEGATED_VNICS " | sed -e 's, '"$NICNAME"'\(\|[^ ]* | \), ,g' -e 's,^[ ]*,,' -e 's, *$,,'`"
+
+# TBD : is "commit" needed for inline calls?
+            $ELEVATE_CMD \
+            zonecfg -z "$ZONENAME" "remove attr name=autovnic"
+
+            [ -n "$DELEGATED_VNICS" ] && \
+            cat | $ELEVATE_CMD zonecfg -z "$ZONENAME" << EOF
+add attr
+set name=autovnic
+set type=string
+set value="$VNICS"
+end
+EOF
+
+        fi
     fi
 }
 
 delete_vnics_zone() {
     # Remove ALL of the host (GZ) VNICs previously given to this zone
+    # Note the zone should be not-running (VNICs not busy) at this time
     local ZONENAME="$1"
     check_is_managed_zone "$ZONENAME" || return $?
-    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
+    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME} | sed 's,|[^ ]*,,g'`"
     local V
 
     [ -n "$DELEGATED_VNICS" ] && \
@@ -1298,7 +1323,7 @@ remove_vnic_zonecfg_all() {
     # routine to remove VNIC snippet from zonecfg
     local ZONENAME="$1"
     check_is_managed_zone "$ZONENAME" || return $?
-    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME}`"
+    local DELEGATED_VNICS="`list_auto_vnics_zonecfg ${ZONENAME} | sed 's,|[^ ]*,,g'`"
     local V
 
     [ -n "$DELEGATED_VNICS" ] && \
@@ -1321,7 +1346,7 @@ add net
 set physical=$NICNAME
 end
 EOF
-    # TBD: Do we need a "match" for the device too?
+    # TBD: Do we need a "match" for the device too? Seems not required on OI
     # TBD: Do we need to precreate dev/x -> dev/net/x symlinks in zone
     # container of the rootfs? Probably not for builders, maybe yes for
     # infra zones like firewalls/routers based on a common dummy...
@@ -1336,6 +1361,10 @@ zonecfg_snippet_assign_auto_vnics() {
 
     # Find all previously defined VNICs (if any) to append to their list.
     # If any are present, wipe the list before we'd "add" the attribute.
+    # Note this routine returns the attr in format we append to below -
+    # no cleaning is needed. This format allows to re-create the VNICs
+    # before zone startup if they are currently missing (e.g. temporary
+    # and the host rebooted). This is not in scope of standard zone startup.
     VNICS="$(list_auto_vnics_zonecfg "${TARGET_ZONE}")" 2>/dev/null \
     && [ -n "$VNICS" ] && echo "remove attr name=autovnic" \
     || VNICS=""
@@ -1343,7 +1372,7 @@ zonecfg_snippet_assign_auto_vnics() {
     for LVM in $LVM_LIST ; do
         NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] \
             || die "Failed to create VNIC by spec: $LVM"
-        [ -z "$VNICS" ] && VNICS="$NEWVNIC" || VNICS="$VNICS $NEWVNIC"
+        [ -z "$VNICS" ] && VNICS="$NEWVNIC|$LVM" || VNICS="$VNICS $NEWVNIC|$LVM"
         zonecfg_snippet_assign_nic "$NEWVNIC"
     done
 
@@ -1987,6 +2016,9 @@ boot_zone() {
 start_zone() {
     local RES=0
     local ZONENAME="$1"
+
+    # TBD: Review if any auto-vnics are defined, and if any of those are
+    # missing on the host at this time; re-create them as needed.
 
     boot_zone "$ZONENAME" || \
         { RES=$? ; logmsg_error "Zone '$ZONENAME' did not boot" ; return $RES; }
