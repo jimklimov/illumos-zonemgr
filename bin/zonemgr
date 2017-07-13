@@ -248,6 +248,7 @@ SCRIPTLIB_DIE_SCRIPT_ARGC=-1
 # be consulted in the settraps() handler below rather than autodetection
 # at the moment of trap execution (which may be already limited by shell).
 SCRIPTLIB_DIE_ERRCODE=-1
+
 die() {
     # The exit CODE can be passed as a variable, or as the first parameter
     # (if it is a number), both ways can be used for legacy reasons
@@ -627,7 +628,7 @@ Actions: the last specified action is performed (so please only call one).
 NOTE: The user account running this script should be permitted to elevate
 privileges for certain operations. You can use config files to use "sudo",
 or better stick with default "pfexec" and set up Solaris RBAC for the account:
-    usermod -P "ZFS File System Management,ZFS Storage Management,Zone Management,Zone Security,Network Management" $USER
+    usermod -P "File System Management,Object Access Management,Media Backup,Media Restore,ZFS File System Management,ZFS Storage Management,Zone Management,Zone Security,Network Management" $USER
 EOF
 }
 
@@ -638,6 +639,8 @@ if [ $# = 0 ] && [ -z "${ZONEMGR_IS_INCLUDED-}" ] ; then
 fi
 
 
+# Track if the script is called by root or mere mortals
+MY_UID="`id -u 2>/dev/null`" || MY_UID=-1
 
 # Prefix commands that change system state with this
 ELEVATE_CMD="pfexec"
@@ -1803,13 +1806,38 @@ snapshot_zone() {
         WAS_MOUNTED=no
     fi
     if is_mounted "$ZONEROOT_MPT" ; then
+        # Create an XML file equivalent to /etc/zones/$ZONENAME.xml
+        # NOTE : this operation requires root access to place the file into
+        # zone container directory. For non-root users there are hoops to jump
+        # through. The "Media Restore" privilege is required to "pfexec cpio".
         logmsg_info "Exporting zone config"
-        # TBD : this redirection requires root access
-        local ZONECFG
-        ZONECFG="$($ELEVATE_CMD /bin/sh -c "zoneadm -z '$ZONENAME' detach -n")"
-        echo "$ZONECFG" > /tmp/xxxy
-        $ELEVATE_CMD /bin/sh -c "cp /tmp/xxxy '$ZONEROOT_MPT/$ZONENAME.xml'"
-        rm /tmp/xxxy
+
+        local ZONECFG ZONECFG_RES
+        ZONECFG="$($ELEVATE_CMD /bin/sh -c "zoneadm -z '$ZONENAME' detach -n")" && \
+        [ -n "$ZONECFG" ] || ZONECFG_RES=$?
+
+        [ "$ZONECFG_RES" = 0 ] && \
+        if [ "$MY_UID" = 0 ] ; then
+            echo "$ZONECFG" > "$ZONEROOT_MPT/$ZONENAME.xml"
+        else
+            local ZONECFG_TMPDIR
+            ZONECFG_TMPDIR="$(mktemp -d)" && \
+            [ -n "$ZONECFG_TMPDIR" ] || ZONECFG_RES=$?
+
+            [ "$ZONECFG_RES" = 0 ] && \
+            echo "$ZONECFG" > "$ZONECFG_TMPDIR/$ZONENAME.xml" && \
+            ( cd "$ZONECFG_TMPDIR" && echo "$ZONENAME.xml" \
+              | $ELEVATE_CMD /usr/bin/cpio -pmuq "$ZONEROOT_MPT/" ) \
+            || ZONECFG_RES=$?
+
+            [ -n "$ZONECFG_TMPDIR" ] && [ -d "$ZONECFG_TMPDIR" ] \
+            && rm -f "$ZONECFG_TMPDIR/$ZONENAME.xml" \
+            && rm -rf "$ZONECFG_TMPDIR"
+        fi
+
+        if [ "$ZONECFG_RES" = 0 ] ; then
+            logmsg_error "Could not save zone configuration of '$ZONENAME', going on without it"
+        fi
     fi
     if [ "$WAS_MOUNTED" = no ]; then
         $ELEVATE_CMD zfs umount "$ZONEROOT_MPT"
