@@ -1368,6 +1368,14 @@ zonecfg_snippet_assign_auto_vnics() {
     # no cleaning is needed. This format allows to re-create the VNICs
     # before zone startup if they are currently missing (e.g. temporary
     # and the host rebooted). This is not in scope of standard zone startup.
+    # Also note that with temporary VNICs it is possible that the name we
+    # have saved gets occupied by another zone's autovnic. This collides
+    # with hypothetical ability to reuse an already defined VNIC by another
+    # zone. Either case can cause inability of the zone to configure or
+    # start up, and (TBD?) should be figured out by sysadmin who brought
+    # the mess on themselves. Alternatively (TBD), for a temporary autovnic
+    # we can discard the device name (at least if it is not available) and
+    # just generate/instantiate another to the same LVM spec...
     VNICS="$(list_auto_vnics_zonecfg "${TARGET_ZONE}")" 2>/dev/null \
     && [ -n "$VNICS" ] && echo "remove attr name=autovnic" \
     || VNICS=""
