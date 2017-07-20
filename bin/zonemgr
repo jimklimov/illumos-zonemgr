@@ -1820,7 +1820,8 @@ snapshot_zone() {
         # through. The "Media Restore" privilege is required to "pfexec cpio".
         logmsg_info "Exporting zone config"
 
-        local ZONECFG ZONECFG_RES
+        local ZONECFG=""
+        local ZONECFG_RES=0
         ZONECFG="$($ELEVATE_CMD /bin/sh -c "zoneadm -z '$ZONENAME' detach -n")" && \
         [ -n "$ZONECFG" ] || ZONECFG_RES=$?
 
@@ -1843,7 +1844,7 @@ snapshot_zone() {
             && rm -rf "$ZONECFG_TMPDIR"
         fi
 
-        if [ "$ZONECFG_RES" = 0 ] ; then
+        if [ "$ZONECFG_RES" != 0 ] ; then
             logmsg_error "Could not save zone configuration of '$ZONENAME', going on without it"
         fi
     fi
