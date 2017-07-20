@@ -1765,7 +1765,7 @@ generate_zonecfg_snippets() {
 
     zonecfg_snippet_assign_dataset_list "$ADD_DELEGATED_DATASET"
     zonecfg_snippet_assign_lofs_list "$ADD_MOUNT_LOFS"
-    # zonecfg_snippet_assign_autonfs_list "$ADD_MOUNT_AUTONFS"
+    # TBD # zonecfg_snippet_assign_autonfs_list "$ADD_MOUNT_AUTONFS"
     echo "verify"
     echo "commit"
 
