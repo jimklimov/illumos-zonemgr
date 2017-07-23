@@ -1268,11 +1268,42 @@ list_auto_vnics_zonecfg() {
 }
 
 list_auto_vnics_orphaned() {
-    TBD
+    # Print a space-separated list of auto-VNIC names that are not owned
+    local AUTOVNICS=( $(list_auto_vnics_all) )
+    local AUTOVNICS_OWNED=()
+    local ZONENAME VLVM VNIC i
+
+    # Were any autovnics found in host OS?
+    [[ "${#AUTOVNICS[*]}" -gt 0 ]] || { echo ""; return 0; }
+
     # Inspect "claimed" vnics: start with list_auto_vnics_all() and cut off:
-    # * "autovnic" linkprops in each known zone
+    # * "autovnic" linkprops in each known (managed) zone
+    for ZONENAME in `list_zones_managed_all` ; do
+        for VLVM in list_auto_vnics_zonecfg "$ZONENAME" ; do
+            AUTOVNICS_OWNED+=( $(echo "$VLVM" | sed 's,|.*$,,') )
+        done
+    done
+
     # * any nics delegated into each known zone
+    for ZONENAME in `zoneadm list -cp | awk -F: '{print $2}' | grep -vw global` ; do
+        for VNIC in `zonecfg -z "$ZONENAME" "info net" | grep physical: | sed 's,^.*physical: *,,'` ; do
+            AUTOVNICS_OWNED+=( $VNIC )
+        done
+    done
+
     # * vnics with a "zoned" attribute currently
+    AUTOVNICS_OWNED+=( `dladm show-linkprop -p zone -c -o link,value | sed 's,^.*:,,'` )
+
+    # un-list vnics that are owned
+    for VNIC in "${AUTOVNICS_OWNED[@]}"; do
+        for i in "${!AUTOVNICS[@]}"; do
+            if [[ ${AUTOVNICS[i]} = "${AUTOVNICS_OWNED[0]}" ]]; then
+                unset 'AUTOVNICS[i]'
+            fi
+        done
+    done
+
+    echo "${AUTOVNICS[@]}"
 }
 
 # TBD: routine to remove VNIC config files from zone contents
