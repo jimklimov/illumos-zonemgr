@@ -8,6 +8,10 @@
 # clones of a golden template env, which has its own update schedule
 # (if any).
 #
+# It is maintained at https://github.com/jimklimov/illumos-zonemgr
+#
+#   LICENSE:
+#
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"). You may
 # only use this file in accordance with the terms of the CDDL.
@@ -1297,7 +1301,7 @@ remove_vnic_zonecfg() {
             zonecfg -z "$ZONENAME" "remove attr name=autovnic"
 
             [ -n "$DELEGATED_VNICS" ] && \
-            cat | $ELEVATE_CMD zonecfg -z "$ZONENAME" << EOF
+            $ELEVATE_CMD zonecfg -z "$ZONENAME" << EOF
 add attr
 set name=autovnic
 set type=string
