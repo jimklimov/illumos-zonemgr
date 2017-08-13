@@ -1224,9 +1224,13 @@ create_vnic() {
 
 delete_vnic() {
     # routine to remove a VNIC definition from host OS (global zone)
-    # TODO: sanity-check input for "auto?iz*" VNICs?
     local NICNAME="$1"
-    $ELEVATE_CMD dladm delete-vnic "$NICNAME"
+    case "$NICNAME" in
+        auto?iz*)
+            $ELEVATE_CMD dladm delete-vnic "$NICNAME" ;;
+        "") logmsg_warn "Requested to remove a VNIC but got no name" ;;
+        *)  die "Requested to remove VNIC '$NICNAME' which is not an auto-vnic" ;;
+    esac
 }
 
 # TBD: Destroy the VNIC when scrapping the zone, but do not use
