@@ -1301,7 +1301,7 @@ list_auto_vnics_orphaned() {
     # un-list vnics that are owned
     for VNIC in "${AUTOVNICS_OWNED[@]}"; do
         for i in "${!AUTOVNICS[@]}"; do
-            if [[ ${AUTOVNICS[i]} = "${AUTOVNICS_OWNED[0]}" ]]; then
+            if [[ "${AUTOVNICS[i]}" = "${AUTOVNICS_OWNED[0]}" ]]; then
                 unset 'AUTOVNICS[i]'
             fi
         done
