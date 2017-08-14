@@ -716,6 +716,10 @@ LIST_ARGS=""
 ACTION=""
 ZONECFG_SCRIPT=""
 
+timestamp_now() {
+    TZ=UTC date -u "+%Y%m%dT%H%M%SZ"
+}
+
 parse_config_file() {
     ### Note: the config should end with a "true" evaluation, e.g. a ":" line
     logmsg_info "Reading config file: $1"
@@ -1834,7 +1838,7 @@ snapshot_zone() {
     local SNAPCOMMENT="$2"
     if [ -z "$SNAPCOMMENT" ] ; then
         logmsg_info "No snapshot comment specified for the zone, using timestamp or PID"
-        SNAPCOMMENT="autozone-`date -u +%Y%m%dT%H%M%SZ`" || \
+        SNAPCOMMENT="autozone-`timestamp_now`" || \
             SNAPCOMMENT="autozone-$$"
     fi
 
