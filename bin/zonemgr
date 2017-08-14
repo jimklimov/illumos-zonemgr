@@ -665,6 +665,8 @@ DATASET_CONTAINMENT_DIZ_MPT=""
 # a different pool. It would still be a job for the local zone to create,
 # mount and use datasets inside it (might start with a standard mountpoint
 # though).
+# TODO: For read-only serving, support cloning datasets from GZ into the
+# zone, so anything that goes bad does not impact the real data outside.
 
 # Flip this to "yes" in a config to use "zfs create -p"
 CAN_ZFS_CREATE_RECURSIVE=no
@@ -689,7 +691,7 @@ TARGET_ZONE=""
 SNAP_NAME=""
 # TODO: Add a -F to enforce some operations, e.g. rollback (and halt) of a
 # running zone? Or rely on OS tools to fail and so require several operations
-# after the failure code... not good)?
+# after the failure code... is this too not-friendly)?
 
 ADD_PUBLISHERS=""
 DEL_PUBLISHERS=""
@@ -700,6 +702,7 @@ ADD_MOUNT_AUTONFS=""
 ADD_DELEGATED_DATASET=""
 COPY_USERS=""
 COPY_GROUPS=""
+# TODO: a list of ELEVATE_USERS for sudo and maybe pfexec?
 EXEC_CMD=""
 EXEC_USER=""
 EXEC_DISCARD=""
@@ -1419,7 +1422,7 @@ zonecfg_snippet_assign_auto_vnics() {
     # just generate/instantiate another to the same LVM spec... Finally
     # note that the VNIC device name can be referenced in the zone itself
     # (/etc/hostname.$VNIC, its NWAM, networking daemon setups, etc.) or
-    # in external (GZ0based) software setups. So handling the renaming or
+    # in external (GZ-based) software setups. So handling the renaming or
     # temporary VNICs (with changing names) can have arbitrary complexity.
     VNICS="$(list_auto_vnics_zonecfg "${TARGET_ZONE}")" 2>/dev/null \
     && [ -n "$VNICS" ] && echo "remove attr name=autovnic" \
@@ -1570,6 +1573,7 @@ clone_group() {
     _G="$(egrep "^$G:" "/etc/group")" || \
         die "Can not replicate unknown group '$G' from the host!"
 
+# if [ "$MY_UID" = 0 ] ; ...
     getALTROOT && \
     [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
 
