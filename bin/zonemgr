@@ -1111,6 +1111,12 @@ get_zone_newest_snapshot_comment() {
     echo "$SNAPCOMMENT"
 }
 
+list_all_zones() {
+    zoneadm list -cp | \
+        awk -F: '{print $2}' | \
+        grep -vw global
+}
+
 ##########################################################################
 # Create the golden-image zone from scratch, if the name is not yet occupied
 # The zonecfg_snippet_*() routines print a bit of configuration for zonecfg
@@ -1278,6 +1284,18 @@ list_auto_vnics_zonecfg() {
     #TBD # test this on various unsuspecting victims
 }
 
+list_delegated_nics_zonecfg() {
+    # Returns the an EOL-separated list of NICNAME[ ...] entries (one per
+    # line) of any sort of "net" entries delegated into a zone, auto or not.
+    local ZONENAME="$1"
+    local OUT=""
+
+    OUT="$(zonecfg -z "$ZONENAME" "info net" | grep physical: | sed 's,^.*physical: *,,' | egrep -v '^$')" \
+    && [ -n "$OUT" ] || return $?
+
+    echo "$OUT"
+}
+
 list_auto_vnics_orphaned() {
     # Print a space-separated list of auto-VNIC names that are not owned
     local AUTOVNICS=( $(list_auto_vnics_all) )
@@ -1296,8 +1314,8 @@ list_auto_vnics_orphaned() {
     done
 
     # * any nics delegated into each known zone
-    for ZONENAME in `zoneadm list -cp | awk -F: '{print $2}' | grep -vw global` ; do
-        for VNIC in `zonecfg -z "$ZONENAME" "info net" | grep physical: | sed 's,^.*physical: *,,'` ; do
+    for ZONENAME in `list_all_zones` ; do
+        for VNIC in `list_delegated_nics_zonecfg "$ZONENAME"` ; do
             AUTOVNICS_OWNED+=( $VNIC )
         done
     done
