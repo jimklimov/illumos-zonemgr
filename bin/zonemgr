@@ -2043,6 +2043,8 @@ clone_zone() {
 }
 
 setup_zone_postinstall() {
+    ready_zone
+
     clone_groups
     clone_users
     # setup_ldap
@@ -2057,6 +2059,8 @@ setup_zone_postinstall() {
     # this one into a subshell (inheriting the variables and functions),
     # so end-users can copy more files, etc. Running still in GZ context,
     # thus chrooting/zlogin'ing is up to that scripter.
+
+    halt_zone
 }
 
 # pkg-update contents of a (golden-image?) zone, snapshot after success
