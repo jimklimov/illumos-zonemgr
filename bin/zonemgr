@@ -1065,7 +1065,7 @@ getALTROOT() {
     if [ -z "$ZONENAME" ] ; then
         ZONENAME="${TARGET_ZONE}"
     fi
-    ALTROOT="`get_zone_root "$ZONENAME"`/root" || return
+    ALTROOT="`get_zone_root "$ZONENAME"`/root" && [ -n "$ALTROOT" ] || return
     echo "$ALTROOT"
 }
 
