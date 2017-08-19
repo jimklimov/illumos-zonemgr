@@ -1985,10 +1985,12 @@ $ZONECFG_SCRIPT
     logmsg_info "Installing zone '${TARGET_ZONE}' (note: at this time special options like publisher and pkg lists are not handled yet)"
     $ELEVATE_CMD zoneadm -z "${TARGET_ZONE}" install \
         || die "Could not install zone '$TARGET_ZONE'"
+    snapshot_zone "${TARGET_ZONE}" "initial-install"
+
     # Add pkgs/pubs?
     logmsg_info "Post-Install processing for zone '${TARGET_ZONE}'"
     setup_zone_postinstall
-    snapshot_zone "${TARGET_ZONE}" "initial-install"
+    snapshot_zone "${TARGET_ZONE}" "initial-postinstalled"
 }
 
 # Clone a zone (clone current state, last or specified snapshot)
@@ -2037,6 +2039,7 @@ clone_zone() {
     # TBD : verify that origin NICs (if any - should not be in a golden image
     # in the first place) are not used in new zone
     setup_zone_postinstall
+    snapshot_zone "${TARGET_ZONE}" "clone-postinstalled"
 }
 
 setup_zone_postinstall() {
