@@ -1669,6 +1669,63 @@ setup_ldap() {
     TBD
 }
 
+setup_vnic_dhcp() {
+    # Pre-set NICs for legacy DHCP (/etc/dhcp.VNICNAME), if not already set up.
+    # Assumes zone root is mounted, and "ready" or "booted".
+    local ZONENAME="$1"
+    local NICNAME="$2"
+
+    # TODO: forcing-flag to not skip existing setups?
+    $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
+if [ -s "/etc/hostname.${NICNAME}" ] ; then
+    echo "SKIP: NIC '${NICNAME}' is already set up in zone '$ZONENAME'"
+else
+    cat /dev/null > /etc/dhcp.${NICNAME}
+    cat /dev/null > /etc/hostname.${NICNAME}
+    rm -f /etc/dhcp/${NICNAME}.dhc
+fi
+EOF
+}
+
+setup_zone_vnics_dhcp() {
+    local ZONENAME="$1"
+    local NICNAME DELEGATED_NICS EXISTING_NICS
+
+    DELEGATED_NICS="$(list_delegated_nics_zonecfg "$ZONENAME")"
+    # TODO: Clean up existing configs of NICs that are not delegated,
+    # in case of untidy origin zone being cloned...
+
+    for NICNAME in $DELEGATED_NICS ; do
+        setup_vnic_dhcp "$ZONENAME" "$NICNAME"
+    done
+
+    $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
+svcadm disable -s svc:/network/physical:nwam || true
+svcadm enable svc:/network/physical:default
+EOF
+}
+
+setup_zone_name() {
+    local ZONENAME="$1"
+    local ZONEHOSTNAME="$2"
+    [ -n "$ZONENAME" ] || ZONENAME="${TARGET_ZONE}"
+    [ -n "$ZONEHOSTNAME" ] || ZONEHOSTNAME="${ZONENAME}"
+
+    $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
+echo "${ZONEHOSTNAME}" > "/etc/nodename"
+if [ -n "${ORIGIN_ZONE}" ] ; then
+    sed -e 's,^\(127\.0\.0\.1.*[\ \t]\)'"${ORIGIN_ZONE}"'\([\ \t].*|\)$,\1\2,' \
+        -i /etc/hosts
+fi
+    sed -e 's,^\(127\.0\.0\.1.*[\ \t].*\)$,\1\t'"${ZONEHOSTNAME}"',' \
+        -i /etc/hosts
+if [ x"${ZONEHOSTNAME}" != x"${ZONENAME}" ]; then
+    sed -e 's,^\(127\.0\.0\.1.*[\ \t].*\)$,\1\t'"${ZONENAME}"',' \
+        -i /etc/hosts
+fi
+EOF
+}
+
 ##########################################################################
 # General maintenance actions:
 ##########################################################################
@@ -2045,6 +2102,7 @@ clone_zone() {
 setup_zone_postinstall() {
     ready_zone
 
+    setup_zone_name
     clone_groups
     clone_users
     # setup_ldap
@@ -2054,6 +2112,7 @@ setup_zone_postinstall() {
     # * Enable network/physical:default
     # * Enable ipfilter? Pre-set for config via /etc/ipf/* files?
     # * TODO: Add a CLI option for more flexible config, e.g. static?
+    setup_zone_vnics_dhcp
 
     # TODO: Add a CLI option for custom post-install script sourced from
     # this one into a subshell (inheriting the variables and functions),
