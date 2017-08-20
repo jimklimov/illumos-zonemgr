@@ -2189,7 +2189,7 @@ zone_action() {
         check_is_managed_zone "$ZONENAME" || return
         logmsg_info "Trying to '$ZONEACTION' zone '$ZONENAME'..."
         case "$ZONEACTION" in
-            boot|halt|poweroff|reboot|ready|mount|unmount)
+            boot|halt|reboot|ready|mount|unmount)
                 case "$ZONEACTION" in
                     boot|reboot|ready|mount)
                         secure_assigned_datasets "$ZONENAME" ;;
