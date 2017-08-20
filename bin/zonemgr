@@ -656,9 +656,9 @@ ELEVATE_CMD="pfexec"
 OUTFILE=""
 
 # Golden images live under this dataset
-DATASET_CONTAINMENT_GIZ="rpool/zones/_zonemgr-GIZ"
+DATASET_CONTAINMENT_GIZ="rpool/zones/_zonemgr/GIZ"
 # Disposable zones live under this dataset
-DATASET_CONTAINMENT_DIZ="rpool/zones/_zonemgr-DIZ"
+DATASET_CONTAINMENT_DIZ="rpool/zones/_zonemgr/DIZ"
 # Mountpoints for the above. If populated before creation, causes script to
 # set the "mountpoint" option of the dataset. If empty, the default is used.
 # After passing the routines to ensure presence of the datasets, the _MPT
