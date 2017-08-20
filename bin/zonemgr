@@ -1292,8 +1292,10 @@ list_auto_vnics_zonecfg() {
     fi
 
     # Error here is missing token/unexpected markup
-    OUT="$(echo "$OUT" | grep value:)" \
-    && OUT="$(echo "$OUT" | sed 's,^[ \t]*value:[ \t]*\(.*\)$,\1,')" \
+    # Somehow the simple `'s,^[\ \t]*value:[\ \t]*\(.*\)$,\1,'` expression
+    # and `'s,^[\ \t]*value:[\ \t]*,,` refused to do the right thing
+    OUT="$(echo "$OUT" | grep 'value:' )" \
+    && OUT="$(echo "$OUT" | sed -e 's,value:,,' -e 's,^[\ \t]*,,')" \
     && [ -n "$OUT" ] || return $?
 
     # NOTE: We assume an empty output here a valid one - no autovnics
