@@ -122,7 +122,7 @@ role) via `pfexec`, and doing so from a Global zone.
 ** halt and roll back to specified snapshot (e.g. reuse same)
 ** run a command inside the zone (via zlogin), maybe as a specified account
 
-=== Notes
+=== Notes for development and architecture
 
 * Certain limitations, such as the initial set of installed packages and the
   amount of package repositories or other media (archives, snapshots) that
@@ -143,14 +143,31 @@ role) via `pfexec`, and doing so from a Global zone.
 ** For operations in local zones, `ready_zone()` and `zlogin -S` can be used.
 ** For operations in global zone, the set of requested permissions includes
    the backup operations, which allows to `cpio` files with elevated rights.
+
+=== Notes for testing
+
 * Test-suite is wanted :) It would help to both keep track of usage scenarios
   (implemented => non-regression, and planned => TDD until it works), and to
   serve as practical documentation of script's abilities and the command-line
   spells.
+* Inside the test suite, it can be helpful to provide a configuration file
+  so that only specific ZFS tree can be manipulated with different settings,
+  etc. and refer to that file by `export ZONEMGR_CONF=/path/to/test.conf`.
+* For development, if the script is called with `DEVEL_DEBUG` as the first
+  option, then the rest of options can hook into a single procedure and its
+  arguments.
+* For testing, the script supports being included. Maybe the `DEVEL_DEBUG`
+  mode would move into an extra helper for unit-testing, later in evolution.
 
 == Usage examples
 
 The following paragraphs intend to show specific examples of `zonemgr` usage.
+
+Beside command-line options listed in the help text, internal configuration
+variables can also be set using configuration files, overlaying system and
+user defaults provided in `/etc/zones/zonemgr.conf`, `${HOME}/.zonemgr.conf`
+and `${ZONEMGR_CONF}` (any of these is only sourced if present), and a file
+specified on command-line with the `-c /path/to/myconfig.conf` option.
 
 * Create a default GIZ with no details (system-default brand, no VNICs, no
 special datasets, no packaging customizations, etc):
