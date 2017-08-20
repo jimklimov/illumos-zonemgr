@@ -590,7 +590,7 @@ several times):
     -G|--remove-publisher LIST  Remove publisher URLs and/or definitions using
             same argument format as above
     --mount-lofs LIST           Set up lofs-mounting of specified paths from
-            GZ, as a whitespace-separated list of "lzpath|gzpath" items
+            GZ, as a whitespace-separated list of "lzpath[|gzpath]" items
     --mount-autonfs LIST        Set up autofs-mounting of specified NFS paths,
             as whitespace-separated list of "lzpath|NFSurl" items
     --delegate-dataset LIST     Set up creation and delegation of specified
@@ -1573,8 +1573,8 @@ secure_assigned_datasets() {
 zonecfg_snippet_assign_lofs() {
     local ZONEDIR="$1"
     local HOSTDIR="$2"
-    [ -n "${HOSTDIR-}" ] || die "Bad args to zonecfg_snippet_assign_lofs()"
-    [ -n "${ZONEDIR-}" ] || ZONEDIR="${HOSTDIR-}"
+    [ -n "${HOSTDIR-}" ] || HOSTDIR="${ZONEDIR-}"
+    [ -n "${ZONEDIR-}" ] || die "Bad args to zonecfg_snippet_assign_lofs()"
     cat << EOF
 add fs
 set dir=$ZONEDIR
@@ -1586,7 +1586,7 @@ EOF
 }
 
 zonecfg_snippet_assign_lofs_list() {
-    # $1 = $ADD_MOUNT_LOFS, list of "lzpath|gzpath lzpath2|gzpath2 ..."
+    # $1 = $ADD_MOUNT_LOFS, list of "lzpath[|gzpath] lzpath2[|gzpath2] ..."
     local LZPATH GZPATH L_G
     if [ -n "$1" ]; then
         for L_G in $1 ; do
