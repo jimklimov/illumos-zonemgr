@@ -1200,7 +1200,7 @@ zonecfg_snippet_attr_origin() {
 
     cat << EOF
 add attr
-set name=origin
+set name=zonemgr.origin
 set type=string
 set value="$VAL"
 end
@@ -1283,7 +1283,7 @@ list_auto_vnics_zonecfg() {
     local ZONENAME="$1"
     local OUT=""
 
-    OUT="$(zonecfg -z "$ZONENAME" "info attr name=autovnic")" \
+    OUT="$(zonecfg -z "$ZONENAME" "info attr name=zonemgr.autovnic")" \
     && [ -n "$OUT" ] || return $?
 
     if echo "$OUT" | grep 'No such attr resource' >/dev/null 2>/dev/null ; then
@@ -1378,12 +1378,12 @@ remove_vnic_zonecfg() {
 
 # TBD : is "commit" needed for inline calls?
             $ELEVATE_CMD \
-            zonecfg -z "$ZONENAME" "remove attr name=autovnic"
+            zonecfg -z "$ZONENAME" "remove attr name=zonemgr.autovnic"
 
             [ -n "$DELEGATED_VNICS" ] && \
             $ELEVATE_CMD zonecfg -z "$ZONENAME" << EOF
 add attr
-set name=autovnic
+set name=zonemgr.autovnic
 set type=string
 set value="$VNICS"
 end
@@ -1422,7 +1422,7 @@ remove_vnic_zonecfg_all() {
     done
 
     $ELEVATE_CMD \
-    zonecfg -z "$ZONENAME" "remove attr name=autovnic"
+    zonecfg -z "$ZONENAME" "remove attr name=zonemgr.autovnic"
 }
 
 # Add resource definitions (datasets/lofs, network, user accounts/ldap, ...)
@@ -1478,7 +1478,7 @@ zonecfg_snippet_assign_auto_vnics() {
     # in external (GZ-based) software setups. So handling the renaming or
     # temporary VNICs (with changing names) can have arbitrary complexity.
     VNICS="$(list_auto_vnics_zonecfg "${TARGET_ZONE}")" 2>/dev/null \
-    && [ -n "$VNICS" ] && echo "remove attr name=autovnic" \
+    && [ -n "$VNICS" ] && echo "remove attr name=zonemgr.autovnic" \
     || VNICS=""
 
     for LVM in $LVM_LIST ; do
@@ -1491,7 +1491,7 @@ zonecfg_snippet_assign_auto_vnics() {
     if [ -n "$VNICS" ]; then
          cat << EOF
 add attr
-set name=autovnic
+set name=zonemgr.autovnic
 set type=string
 set value="$VNICS"
 end
