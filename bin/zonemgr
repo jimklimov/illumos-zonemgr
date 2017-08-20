@@ -1175,7 +1175,7 @@ EOF
 
 # TBD: Let specify package source(s) - URL to IPS repo, possibly just one
 # publisher may be allowed for initial installation (depends on illumos
-# distro ad zone brand - eg. linked-image zones inherit the whole set of
+# distro and zone brand - e.g. linked-image zones inherit the whole set of
 # publishers from GZ), but more may be added after initial "image" setup.
 
 # TBD: Consider packaging, tarballs, zfs-send images to instantiate zone root
