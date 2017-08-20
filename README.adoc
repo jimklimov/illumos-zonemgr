@@ -63,7 +63,14 @@ Local definitions (introduced by this project):
   task (e.g. a build) possibly with more specific resources designated to help
   fulfill this job, and which is to be destroyed afterwards.
 
-== Expected workflow
+== Notes for development and contributors/hackers
+
+The following blocks of text are intended mainly for developers of the script,
+including prospect contributors and power users who want to figure out how it
+works (or is supposed to, at least) and why. And to keep track of how much of
+the plan is completed. And to have a plan at all :)
+
+=== Expected workflow
 
 All of the below assumes working from an account with RBAC privileges sufficient
 to create, manage and destroy local zones and datasets (e.g. a `Primary Admin`
@@ -115,7 +122,7 @@ role) via `pfexec`, and doing so from a Global zone.
 ** halt and roll back to specified snapshot (e.g. reuse same)
 ** run a command inside the zone (via zlogin), maybe as a specified account
 
-== Notes
+=== Notes
 
 * Certain limitations, such as the initial set of installed packages and the
   amount of package repositories or other media (archives, snapshots) that
@@ -125,3 +132,124 @@ role) via `pfexec`, and doing so from a Global zone.
   solution setup might be to upstream these experiments or define and package
   custom zone brands - but either way the proper fix is outside a script like
   this one.
+* When developing and testing, keep in mind that non-root user with specified
+  RBAC (`pfexec`, not `sudo`) privileges should be able to perform operations.
+  This especially concerns operations in the global zone where files have to
+  be read or written by a `root`-like entity due to access permissions.
+  It is likely that during initial PoC of the logic some corners are cut --
+  so do at least leave a TODO/TBD/FIXME note that this would have to be
+  addressed later. Some hints on implementation:
+** A `MY_UID` value is tracked to check quickly if running as `root` (`0`).
+** For operations in local zones, `ready_zone()` and `zlogin -S` can be used.
+** For operations in global zone, the set of requested permissions includes
+   the backup operations, which allows to `cpio` files with elevated rights.
+* Test-suite is wanted :) It would help to both keep track of usage scenarios
+  (implemented => non-regression, and planned => TDD until it works), and to
+  serve as practical documentation of script's abilities and the command-line
+  spells.
+
+== Usage examples
+
+The following paragraphs intend to show specific examples of `zonemgr` usage.
+
+* Create a default GIZ with no details (system-default brand, no VNICs, no
+special datasets, no packaging customizations, etc):
+
+----
+:; ./zonemgr create-giz
+----
+
+* Create a default GIZ with specified name:
+
+----
+:; ./zonemgr create-giz -z test-giz-1 -b SUNWipkg
+----
+
+* Create a default DIZ with automatic name, cloning a previously created GIZ
+(or newly spawned, in its absence):
+
+----
+:; ./zonemgr create-diz -c test-giz-1
+----
+
+** NOTE: At this time, cloning is incomplete.
+
+* Create a DIZ with some networks (DHCP is automatically enabled) and
+filesystems:
+
+----
+:; ./zonemgr create-diz -z test-diz-1 --mount-lofs "/export/home" \
+   --delegate-dataset "pool/zones/_delegated/test-diz-1" \
+   --add-vnic-over "etherstub127 e1000g0|81|00:12:34:56:78:ab"
+----
+
+** NOTE: At this time, cloning and guessing of suitable GIZ are incomplete.
+
+* Create a DIZ with NFS-mounted paths:
+
+----
+:; ./zonemgr create-diz -z test-diz-1 \
+   --mount-autonfs "/mnt/.ccache|filer:/var/.ccache-shared"
+----
+
+** NOTE: At this time, cloning and guessing of suitable GIZ are incomplete.
+** NFS+AUTOFS may also be unimplemented yet.
+
+* Common house-keeping:
+
+----
+:; ./zonemgr list
+:; ./zonemgr list-diz
+:; ./zonemgr list-giz
+
+:; ./zonemgr is-managed -z test-zone-1
+----
+
+
+* Runtime lifecycle of an installed zone:
+
+----
+:; ./zonemgr -z test-diz-1 boot
+:; ./zonemgr -z test-diz-1 halt
+:; ./zonemgr -z test-diz-1 shutdown
+:; ./zonemgr -z test-diz-1 reboot
+:; ./zonemgr -z test-diz-1 mount
+:; ./zonemgr -z test-diz-1 umount
+:; ./zonemgr -z test-diz-1 ready
+----
+
+* Uninstall a zone:
+
+----
+:; ./zonemgr -z test-diz-1 destroy
+----
+
+* Check zone-manifest consistency:
+
+----
+:; ./zonemgr -z test-diz-1 verify
+----
+
+* Snapshots:
+
+----
+:; ./zonemgr snapshot -z test-giz-1 -s snap1
+:; ./zonemgr rollback -z test-giz-1 -s snap1
+:; ./zonemgr list-snapshots -z test-giz-1
+
+:; ./zonemgr create-diz -c test-giz-1 -s snap1 -z test-diz-1
+----
+
+* Execute command in a discardable zone:
+
+----
+:; ./zonemgr exec --exec-discard onsuccess -z build-diz-1 \
+   --exec-cmd "cd /home/illumos-gate && ./nightly.sh"
+
+:; ./zonemgr exec-diz -c build-giz-jdk \
+   --exec-user jenkins --copy-users jenkins --copy-groups jenkins \
+   --mount-lofs "/export/oi-userland" \
+   --add-vnic-over "etherstub127" \
+   --exec-cmd "cd /export/oi-userland/components/java8 && gmake publish"
+----
+
