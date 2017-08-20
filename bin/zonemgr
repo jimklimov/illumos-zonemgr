@@ -525,6 +525,11 @@ TBD() {
 # archives and ZFS snapshots instead of packaging.
 # TODO: Support zone naming by UUID (zoneadm -u uuid), not only by
 # name (-z) which we already do support?
+# TODO: Add support for changing configuration of an existing zone
+# without making a clone with amended config? Limit this to just some
+# changes?
+# TODO: Clarify usage of brands vs. templates vs. cloning... verify the
+# latter are not aspects of the same functionality? :)
 usage() {
     cat << EOF
 Usage: ${_SCRIPT_NAME} (options...) (action)
