@@ -2160,7 +2160,7 @@ clone_zone() {
 }
 
 setup_zone_postinstall() {
-    ready_zone
+    ready_zone "${TARGET_ZONE}"
 
     setup_zone_name
     clone_groups
@@ -2180,7 +2180,7 @@ setup_zone_postinstall() {
     # so end-users can copy more files, etc. Running still in GZ context,
     # thus chrooting/zlogin'ing is up to that scripter.
 
-    halt_zone
+    halt_zone "${TARGET_ZONE}"
 }
 
 # pkg-update contents of a (golden-image?) zone, snapshot after success
