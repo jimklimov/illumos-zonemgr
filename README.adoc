@@ -264,7 +264,8 @@ filesystems:
    --exec-cmd "cd /home/illumos-gate && ./nightly.sh"
 
 :; ./zonemgr exec-diz -c build-giz-jdk \
-   --exec-user jenkins --copy-users jenkins --copy-groups jenkins \
+   --exec-user jenkins --copy-users "jenkins jim" --elevate-users "jim" \
+   --copy-groups jenkins \
    --mount-lofs "/export/oi-userland" \
    --add-vnic-over "etherstub127" \
    --exec-cmd "cd /export/oi-userland/components/java8 && gmake publish"

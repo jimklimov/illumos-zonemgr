@@ -598,6 +598,7 @@ several times):
             corresponding local zone admin)
     --copy-users LIST   Copy listed (white-space separated) group and user
     --copy-groups LIST  ...account defs from GZ to LZ (lines in file DBs)
+    --elevate-users LIST        Set these accounts for RBAC and sudo like root
 
 Actions: the last specified action is performed (so please only call one).
     create-giz          Create target golden-image zone from template/origin
@@ -716,7 +717,7 @@ ADD_MOUNT_AUTONFS=""
 ADD_DELEGATED_DATASET=""
 COPY_USERS=""
 COPY_GROUPS=""
-# TODO: a list of ELEVATE_USERS for sudo and maybe pfexec?
+ELEVATE_USERS=""
 EXEC_CMD=""
 EXEC_USER=""
 EXEC_DISCARD=""
@@ -787,6 +788,8 @@ parse_config_args() {
                 COPY_USERS="$COPY_USERS $2"; shift ;;
             --copy-groups|--copy-group)
                 COPY_GROUPS="$COPY_GROUPS $2"; shift ;;
+            --elevate-users|--elevate-user)
+                ELEVATE_USERS="$ELEVATE_USERS $2"; shift ;;
             --add-vnic|--use-vnic|--add-vnics|--use-vnics)
                 USE_VNICS="$USE_VNICS $2"; shift ;;
             --add-vnic-over|--use-vnic-over|--add-vnics-over|--use-vnics-over|--auto-vnic|--auto-vnics)
@@ -882,6 +885,7 @@ print_config() {
     "ADD_DELEGATED_DATASET='$ADD_DELEGATED_DATASET'" \
     "COPY_USERS='$COPY_USERS'" \
     "COPY_GROUPS='$COPY_GROUPS'" \
+    "ELEVATE_USERS='$ELEVATE_USERS'" \
     "USE_VNICS='$USE_VNICS'" \
     "AUTO_VNICS='$AUTO_VNICS'" \
     "EXEC_CMD='$EXEC_CMD'" \
@@ -1700,6 +1704,24 @@ clone_users() {
     return $RES
 }
 
+elevate_user() {
+    local U="$1"
+
+    $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
+printf '%s\tALL=(ALL) NOPASSWD: ALL\n' "$U" > "/etc/sudoers.d/90zonemgr.$U"
+printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\:no;profiles=All;clearance=admin_high;type=normal\n' "$U" > "/etc/user_attr.d/90zonemgr.$U"
+EOF
+}
+
+elevate_users() {
+    local RES=0
+    [ -z "${ELEVATE_USERS-}" ] || \
+    for U in $ELEVATE_USERS ; do
+        elevate_user "$U" || RES=$?
+    done
+    return $RES
+}
+
 # TBD: Configure LDAP (hosts, users, groups, netgroups; client; registration;
 # pam; an openldap.conf for other tools) by editing and/or adding files in NGZ
 setup_ldap() {
@@ -2143,6 +2165,7 @@ setup_zone_postinstall() {
     setup_zone_name
     clone_groups
     clone_users
+    elevate_users
     # setup_ldap
 
     # If VNICs exist:
