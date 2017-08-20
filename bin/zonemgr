@@ -1579,6 +1579,10 @@ zonecfg_snippet_assign_lofs_list() {
     fi
 }
 
+zonecfg_snippet_assign_autonfs() {
+    TBD
+}
+
 zonecfg_snippet_assign_autonfs_list() {
     TBD # Decide how to implement autonfs better, including installation
     # and enablement of the autofs and nfs/client services.
