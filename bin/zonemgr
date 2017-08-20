@@ -671,11 +671,20 @@ DATASET_CONTAINMENT_DIZ_MPT=""
 # Flip this to "yes" in a config to use "zfs create -p"
 CAN_ZFS_CREATE_RECURSIVE=no
 # Flip this to "on" in a config to dedup under the GIZ container
+# This defaults to "off" based on theory that detection of a zone to clone
+# and so inherit its contents would work, so anything that intersects is
+# already referenced per cloning. This assumption can fail for zones made
+# from multiple sources (e.g. development of new packages) where dedup is
+# unlikely to help, but dedup may help with different brands of zones
+# coming from same or similar sources, or as the installed zones deviate
+# due to package updates - installing same files into different longterm BE's.
 DATASET_CONTAINMENT_GIZ_DEDUP=off
 # For GIZ we want strong compression, it is not written often
 DATASET_CONTAINMENT_GIZ_COMPRESSION="gzip-9"
 # For DIZ clones we want fast compression, like "on" or "lz4" or "zle"
+# and no dedup since these zones are mostly clones of existing golden images
 DATASET_CONTAINMENT_DIZ_COMPRESSION="zle"
+DATASET_CONTAINMENT_DIZ_DEDUP=off
 
 # Which zone template a GIZ from scratch starts with
 TEMPLATE_GIZ="SUNWipkg"
@@ -853,6 +862,7 @@ print_config() {
     "DATASET_CONTAINMENT_GIZ_COMPRESSION='$DATASET_CONTAINMENT_GIZ_COMPRESSION'" \
     "DATASET_CONTAINMENT_DIZ='$DATASET_CONTAINMENT_DIZ'" \
     "DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'" \
+    "DATASET_CONTAINMENT_DIZ_DEDUP='$DATASET_CONTAINMENT_DIZ_DEDUP'" \
     "DATASET_CONTAINMENT_DIZ_COMPRESSION='$DATASET_CONTAINMENT_DIZ_COMPRESSION'" \
     "CAN_ZFS_CREATE_RECURSIVE='$CAN_ZFS_CREATE_RECURSIVE'" \
     "TARGET_ZONE='$TARGET_ZONE'" \
@@ -1005,6 +1015,7 @@ create_dataset_containment_GIZ() {
         on|off)
             $ELEVATE_CMD zfs set dedup="$DATASET_CONTAINMENT_GIZ_DEDUP" "$DATASET_CONTAINMENT_GIZ" || \
                 logmsg_warn "Could not set ZFS props: dedup on '$DATASET_CONTAINMENT_GIZ'" ;;
+        *)  logmsg_warn "Unknown dedup setting DATASET_CONTAINMENT_GIZ_DEDUP='$DATASET_CONTAINMENT_GIZ_DEDUP'" ;;
     esac
     if [ -n "$DATASET_CONTAINMENT_GIZ_MPT" ]; then
         $ELEVATE_CMD zfs set mountpoint="$DATASET_CONTAINMENT_GIZ_MPT" "$DATASET_CONTAINMENT_GIZ" || \
@@ -1041,8 +1052,12 @@ create_dataset_containment_DIZ() {
     $ELEVATE_CMD zfs set compression="$DATASET_CONTAINMENT_DIZ_COMPRESSION" "$DATASET_CONTAINMENT_DIZ"
     $ELEVATE_CMD zfs set com.sun:auto-snapshot=false "$DATASET_CONTAINMENT_DIZ" || \
         logmsg_warn "Could not set ZFS props: auto-snapshot on '$DATASET_CONTAINMENT_DIZ'"
-    $ELEVATE_CMD zfs set dedup=off "$DATASET_CONTAINMENT_DIZ" || \
-        logmsg_warn "Could not set ZFS props: dedup on '$DATASET_CONTAINMENT_DIZ'"
+    case "$DATASET_CONTAINMENT_DIZ_DEDUP" in
+        on|off)
+            $ELEVATE_CMD zfs set dedup="$DATASET_CONTAINMENT_DIZ_DEDUP" "$DATASET_CONTAINMENT_DIZ" || \
+                logmsg_warn "Could not set ZFS props: dedup on '$DATASET_CONTAINMENT_DIZ'" ;;
+        *)  logmsg_warn "Unknown dedup setting DATASET_CONTAINMENT_DIZ_DEDUP='$DATASET_CONTAINMENT_DIZ_DEDUP'" ;;
+    esac
     if [ -n "$DATASET_CONTAINMENT_DIZ_MPT" ]; then
         $ELEVATE_CMD zfs set mountpoint="$DATASET_CONTAINMENT_DIZ_MPT" "$DATASET_CONTAINMENT_DIZ" || \
             logmsg_warn "Could not set ZFS props: mountpoint on '$DATASET_CONTAINMENT_DIZ'"
