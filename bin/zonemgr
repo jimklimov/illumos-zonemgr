@@ -532,8 +532,8 @@ Options: if conflicting options are specified, then the last one wins
 (except when setting defaults for certain actions).
     -h|--help           Display this help text and exit
     --config FILE       Use a specified configuration file after parsing
-            system and user-homedir default files and before
-            parsing any subsequent command-line options
+            system and user-homedir and \$ZONEMGR_CONF default files and
+            before parsing any subsequent command-line options
     --print-config      Show active configuration after parsing CLI args
     -d|--debug LEVEL    Set debugging level to the specified value
     -q|-Q               Set debug to warning+error (-q) or only error (-Q)
@@ -889,7 +889,7 @@ print_config() {
 
 parse_config_startup() {
     # Args: pass "$@" of the script
-    for F in "/etc/zones/zonemgr.conf" "${HOME}/.zonemgr.conf" ; do
+    for F in "/etc/zones/zonemgr.conf" "${HOME}/.zonemgr.conf" "${ZONEMGR_CONF-}"; do
         if [ -s "$F" ] ; then
             parse_config_file "$F" \
                 || logmsg_warn "Could not use config file '$F'"
