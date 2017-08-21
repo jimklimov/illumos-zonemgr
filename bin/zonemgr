@@ -1833,6 +1833,8 @@ setup_zone_vnics_dhcp() {
     local ZONENAME="$1"
     local NICNAME DELEGATED_NICS EXISTING_NICS
 
+    [ -n "$ZONENAME" ] || ZONENAME="${TARGET_ZONE}"
+
     DELEGATED_NICS="$(list_delegated_nics_zonecfg "$ZONENAME")"
     # TODO: Clean up existing configs of NICs that are not delegated,
     # in case of untidy origin zone being cloned...
