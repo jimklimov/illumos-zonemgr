@@ -1951,7 +1951,7 @@ get_zone_root() {
     local ZONENAME="$1"
     [ -n "$ZONENAME" ] && \
     zoneadm -z "$ZONENAME" list -p 2>/dev/null | \
-        awk -F: '{print $4} '
+        awk -F: '{print $4}'
 }
 
 get_zone_root_ds() {
@@ -1963,7 +1963,7 @@ get_zone_state() {
     local ZONENAME="$1"
     [ -n "$ZONENAME" ] && \
     zoneadm -z "$ZONENAME" list -p 2>/dev/null | \
-        awk -F: '{print $3} '
+        awk -F: '{print $3}'
 }
 
 is_managed_zone() {
