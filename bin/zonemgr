@@ -1850,7 +1850,10 @@ setup_zone_vnics_dhcp() {
 
     [ -n "$ZONENAME" ] || ZONENAME="${TARGET_ZONE}"
 
-    DELEGATED_NICS="$(list_delegated_nics_zonecfg "$ZONENAME")"
+    DELEGATED_NICS="$(list_delegated_nics_zonecfg "$ZONENAME")" \
+    && [ -n "$DELEGATED_NICS" ] \
+    || { logmsg_info "No NICs found delegated into zone '$ZONENAME', nothing to configure here"
+         return 0 ; }
     # TODO: Clean up existing configs of NICs that are not delegated,
     # in case of untidy origin zone being cloned...
 
