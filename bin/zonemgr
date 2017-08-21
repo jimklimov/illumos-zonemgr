@@ -1661,18 +1661,31 @@ clone_group() {
     _G="$(egrep "^$G:" "/etc/group")" || \
         die "Can not replicate unknown group '$G' from the host!"
 
-# if [ "$MY_UID" = 0 ] ; ...
-    getALTROOT && \
-    [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
+    if [ "$MY_UID" = 0 ] ; then
+        getALTROOT && \
+        [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
 
-    logmsg_info "Defining group account '$_G' from host to zone"
-    if egrep "^$G:" "${ALTROOT}/etc/group" >/dev/null ; then
-        egrep -v "^$G:" < "${ALTROOT}/etc/group" > "${ALTROOT}/etc/group.tmp" && \
-        echo "$_G" >> "${ALTROOT}/etc/group.tmp" && \
-        cat "${ALTROOT}/etc/group.tmp" > "${ALTROOT}/etc/group"
-        rm -f "${ALTROOT}/etc/group.tmp"
+        logmsg_info "Defining group account '$_G' from host to zone as GZ root"
+        if egrep "^$G:" "${ALTROOT}/etc/group" >/dev/null ; then
+            egrep -v "^$G:" < "${ALTROOT}/etc/group" > "${ALTROOT}/etc/group.tmp" && \
+            echo "$_G" >> "${ALTROOT}/etc/group.tmp" && \
+            cat "${ALTROOT}/etc/group.tmp" > "${ALTROOT}/etc/group"
+            rm -f "${ALTROOT}/etc/group.tmp"
+        else
+            echo "$_G" >> "${ALTROOT}/etc/group"
+        fi
     else
-        echo "$_G" >> "${ALTROOT}/etc/group"
+        logmsg_info "Defining group account '$_G' from host to zone via zlogin"
+        $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
+if egrep "^$G:" "/etc/group" >/dev/null ; then
+    egrep -v "^$G:" < "/etc/group" > "/etc/group.tmp" && \
+    echo "$_G" >> "/etc/group.tmp" && \
+    cat "/etc/group.tmp" > "/etc/group"
+    rm -f "/etc/group.tmp"
+else
+    echo "$_G" >> "/etc/group"
+fi
+EOF
     fi
 }
 
@@ -1680,34 +1693,69 @@ clone_user() {
     # TODO: By construction, this routine now requires "root" to run it.
     # If this proves a bottleneck, find a way to elevate privs to do the job.
     local U="$1"
-    local _P _S
+    local _P=""
+    local _S=""
 
     _P="$($ELEVATE_CMD egrep "^$U:" "/etc/passwd")" || \
         die "Can not replicate unknown user '$U' from the host!"
 
-    _S="$($ELEVATE_CMD egrep "^$U:" "/etc/shadow")" || \
-        { _S="$U:NP:::::::"; logmsg_warn "Can not read password hash of user account '$U' on the host, using an initial NP account setting in the zone!"; }
-
-    getALTROOT && \
-    [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
-
-    logmsg_info "Defining user account '$_P' from host to zone"
-    if egrep "^$U:" "${ALTROOT}/etc/passwd" >/dev/null ; then
-        egrep -v "^$U:" < "${ALTROOT}/etc/passwd" > "${ALTROOT}/etc/passwd.tmp" && \
-        echo "$_P" >> "${ALTROOT}/etc/passwd.tmp" && \
-        cat "${ALTROOT}/etc/passwd.tmp" > "${ALTROOT}/etc/passwd"
-        rm -f "${ALTROOT}/etc/passwd.tmp"
+    if [ "$MY_UID" = 0 ] ; then
+        _S="$(egrep "^$U:" "/etc/shadow")" || _S=""
     else
-        echo "$_P" >> "${ALTROOT}/etc/passwd"
+        # TODO: This magic also has CPIO headers in the stream, effectively
+        # adding cruft in the first and last lines
+        _S="$(echo /etc/shadow | $ELEVATE_CMD cpio -ocq | tr '\0' '\n' | egrep "^$U:")" || _S=""
     fi
 
-    if egrep "^$U:" "${ALTROOT}/etc/shadow" >/dev/null ; then
-        egrep -v "^$U:" < "${ALTROOT}/etc/shadow" > "${ALTROOT}/etc/shadow.tmp" && \
-        echo "$_S" >> "${ALTROOT}/etc/shadow.tmp" && \
-        cat "${ALTROOT}/etc/shadow.tmp" > "${ALTROOT}/etc/shadow"
-        rm -f "${ALTROOT}/etc/shadow.tmp"
+    if [ -z "$_S" ] ; then
+        _S="$U:NP:::::::"
+        logmsg_warn "Can not read password hash of user account '$U' on the host," \
+            "using an initial NP account setting in the zone!"
+    fi
+
+    if [ "$MY_UID" = 0 ] ; then
+        getALTROOT && \
+        [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
+
+        logmsg_info "Defining user account '$_P' from host to zone as GZ root"
+        if egrep "^$U:" "${ALTROOT}/etc/passwd" >/dev/null ; then
+            egrep -v "^$U:" < "${ALTROOT}/etc/passwd" > "${ALTROOT}/etc/passwd.tmp" && \
+            echo "$_P" >> "${ALTROOT}/etc/passwd.tmp" && \
+            cat "${ALTROOT}/etc/passwd.tmp" > "${ALTROOT}/etc/passwd"
+            rm -f "${ALTROOT}/etc/passwd.tmp"
+        else
+            echo "$_P" >> "${ALTROOT}/etc/passwd"
+        fi
+
+        if egrep "^$U:" "${ALTROOT}/etc/shadow" >/dev/null ; then
+            egrep -v "^$U:" < "${ALTROOT}/etc/shadow" > "${ALTROOT}/etc/shadow.tmp" && \
+            echo "$_S" >> "${ALTROOT}/etc/shadow.tmp" && \
+            cat "${ALTROOT}/etc/shadow.tmp" > "${ALTROOT}/etc/shadow"
+            rm -f "${ALTROOT}/etc/shadow.tmp"
+        else
+            echo "$_S" >> "${ALTROOT}/etc/shadow"
+        fi
     else
-        echo "$_S" >> "${ALTROOT}/etc/shadow"
+        logmsg_info "Defining user account '$_P' from host to zone via zlogin"
+        $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
+if egrep "^$U:" "/etc/passwd" >/dev/null ; then
+    egrep -v "^$U:" < "/etc/passwd" > "/etc/passwd.tmp" && \
+    echo "$_P" >> "/etc/passwd.tmp" && \
+    cat "/etc/passwd.tmp" > "/etc/passwd"
+    rm -f "/etc/passwd.tmp"
+else
+    echo "$_P" >> "/etc/passwd"
+fi
+
+if egrep "^$U:" "/etc/shadow" >/dev/null ; then
+    egrep -v "^$U:" < "/etc/shadow" > "/etc/shadow.tmp" && \
+    echo "$_S" >> "/etc/shadow.tmp" && \
+    cat "/etc/shadow.tmp" > "/etc/shadow"
+    rm -f "/etc/shadow.tmp"
+else
+    echo "$_S" >> "/etc/shadow"
+fi
+EOF
     fi
 }
 
@@ -1732,10 +1780,20 @@ clone_users() {
 elevate_user() {
     local U="$1"
 
-    $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
+    if [ "$MY_UID" = 0 ] ; then
+        getALTROOT && \
+        [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
+
+        logmsg_info "Elevating user account '$_P' in the zone as GZ root"
+        printf '%s\tALL=(ALL) NOPASSWD: ALL\n' "$U" > "${ALTROOT}/etc/sudoers.d/90zonemgr.$U"
+        printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\:no;profiles=All;clearance=admin_high;type=normal\n' "$U" > "${ALTROOT}/etc/user_attr.d/90zonemgr.$U"
+    else
+        logmsg_info "Elevating user account '$_P' in the zone via zlogin"
+        $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
 printf '%s\tALL=(ALL) NOPASSWD: ALL\n' "$U" > "/etc/sudoers.d/90zonemgr.$U"
 printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\:no;profiles=All;clearance=admin_high;type=normal\n' "$U" > "/etc/user_attr.d/90zonemgr.$U"
 EOF
+    fi
 }
 
 elevate_users() {
