@@ -2376,7 +2376,7 @@ start_zone() {
     boot_zone "$ZONENAME" || \
         { RES=$? ; logmsg_error "Zone '$ZONENAME' did not boot" ; return $RES; }
 
-    zoneadm -z "$ZONENAME" list -p | awk -F: '{print $3}' | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null || \
+    get_zone_state | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null || \
         { RES=$? ; logmsg_error "Zone '$ZONENAME' not running after trying to start it" ; return $RES; }
 
     # TODO: Possibility for infinite loop if something hangs inside the zone
@@ -2387,7 +2387,7 @@ start_zone() {
         $ELEVATE_CMD zlogin -S "$ZONENAME" 'svcadm enable -ts svc:/milestone/multi-user-server:default' \
             && return 0
         sleep 3
-        zoneadm -z "$ZONENAME" list -p | awk -F: '{print $3}' | egrep -i 'INSTALLED' >/dev/null && \
+        get_zone_state "$ZONENAME" | egrep -i 'INSTALLED' >/dev/null && \
             { RES=$? ; logmsg_error "Zone '$ZONENAME' died after startup" ; return $RES; }
     done
     return $RES
