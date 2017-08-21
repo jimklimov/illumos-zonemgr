@@ -1865,6 +1865,9 @@ setup_zone_vnics_dhcp() {
         setup_vnic_dhcp "$ZONENAME" "$NICNAME"
     done
 
+    # Note: when the zone is in single-user mode, we can not manipulate the
+    # services normally because of "svcadm: Couldn't bind to configuration
+    # repository: repository server unavailable."
     $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 svcadm disable -s svc:/network/physical:nwam || true
 svcadm enable svc:/network/physical:default
