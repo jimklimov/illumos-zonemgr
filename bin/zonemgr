@@ -2084,6 +2084,7 @@ install_zone() {
         TARGET_ZONE="$(generate_zonename)"
         logmsg_warn "A TARGET_ZONE name was not provided, generated '$TARGET_ZONE'"
     fi
+    logmsg_info "Verifying that zone '${TARGET_ZONE}' is not yet configured..."
     if check_is_managed_zone "$TARGET_ZONE" ; then
         die "Could not configure zone '$TARGET_ZONE': it already exists, destroy it first if needed"
         # TBD: forcing or re-creation is not supported by the script... should it be?
@@ -2429,13 +2430,16 @@ rollback_zone() {
         unmount_zone "${ZONENAME}" # Can report error if zone not in mounted state
         # Delegated datasets are not visible in GZ; they should have been
         # handled by umount_zone(). Also below we umount non-zfs if used.
+        # NOTE: Even with ELEVATE_CMD, a non-root fails to see into zonedir
+        local ZONEROOT_MPT_ESCAPED="`echo "$ZONEROOT_MPT/" | sed 's,/,\\\\/,g'`"
         for D in \
-            `/bin/df -k | grep " $ZONEROOT_MPT/" | sort -r | awk '{print $NF}'` \
+            $(mount | awk '( $1 ~ /^'"$ZONEROOT_MPT_ESCAPED"'/ ) {print $1" "$3}' | sort -r) \
             "$ZONEROOT_MPT" \
         ; do
-            logmsg_info "Unmounting $D ..."
+            logmsg_info "Trying to unmount $D ..."
             $ELEVATE_CMD umount "$D" || \
-            $ELEVATE_CMD umount -f "$D" # || return
+            $ELEVATE_CMD umount -f "$D" || \
+            $ELEVATE_CMD zfs umount "$D" # || return
             # Note we do not necessarily abort here - rollbacks might
             # be able to proceed even while datasets are mounted.
             # If they do fail - we account for that below.
@@ -2468,7 +2472,7 @@ rollback_zone() {
                   logmsg_warn "Snapshot $DD@$SNAPCOMMENT did not exist, can not roll back"
                   continue; }
             logmsg_info "Rolling back to $DD@$SNAPCOMMENT ..."
-	    zfs rollback -r "$DD@$SNAPCOMMENT" || SNAP_RES=$?
+	    $ELEVATE_CMD zfs rollback -r "$DD@$SNAPCOMMENT" || SNAP_RES=$?
         done
     done
     [ "$SNAP_RES" = 0 ] || \
@@ -2617,7 +2621,7 @@ do_zonemgr() {
     DATASET_CONTAINMENT_GIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_GIZ")" \
         && [ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
         || die "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
-    df -k "$DATASET_CONTAINMENT_GIZ_MPT" 2>/dev/null >/dev/null \
+    $ELEVATE_CMD /bin/df -k "$DATASET_CONTAINMENT_GIZ_MPT" 2>/dev/null >/dev/null \
         || die "Not mounted: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
 
     logmsg_info "Ensuring availability of container dataset for DIZes"
@@ -2625,7 +2629,7 @@ do_zonemgr() {
     DATASET_CONTAINMENT_DIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_DIZ")" \
         && [ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
         || die "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
-    df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null >/dev/null \
+    $ELEVATE_CMD /bin/df -k "$DATASET_CONTAINMENT_DIZ_MPT" 2>/dev/null >/dev/null \
         || die "Not mounted: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
 
     # Remember to use check_is_managed_zone() before acting on existing zones
