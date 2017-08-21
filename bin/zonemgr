@@ -2361,36 +2361,54 @@ boot_zone() {
     zone_action boot "$ZONENAME"
 }
 
-singleuser_zone() {
-    local ZONENAME="$1"
-    zone_action boot-single "$ZONENAME"
-}
-
-start_zone() {
+zone_start_wait_svc() {
     local RES=0
     local ZONENAME="$1"
+    local ZONEACT="$2"
+    local WAITSVC_FMRI="$3"
+    local WAITSVC_TEXT="$4"
+
+    [ -n "$ZONENAME" ] || ZONENAME="${TARGET_ZONE}"
+    [ -n "$ZONEACT" ] || ZONEACT="boot_zone"
+    [ -n "$WAITSVC_FMRI" ] || WAITSVC_FMRI="svc:/milestone/multi-user-server:default"
+    [ -n "$WAITSVC_TEXT" ] || WAITSVC_TEXT="${WAITSVC_FMRI}"
 
     # TBD: Review if any auto-vnics are defined, and if any of those are
     # missing on the host at this time; re-create them as needed.
 
-    boot_zone "$ZONENAME" || \
-        { RES=$? ; logmsg_error "Zone '$ZONENAME' did not boot" ; return $RES; }
+    zone_action "$ZONEACT" "$ZONENAME" || \
+        { RES=$? ; logmsg_error "Zone '$ZONENAME' did not '$ZONEACT'" ; return $RES; }
 
     get_zone_state | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null || \
         { RES=$? ; logmsg_error "Zone '$ZONENAME' not running after trying to start it" ; return $RES; }
 
     # TODO: Possibility for infinite loop if something hangs inside the zone
     # See https://github.com/jimklimov/illumos-smf-zones for more of this logic
-    logmsg_info "Waiting for multi-user-server milestone to get reached in zone '$ZONENAME'..."
+    logmsg_info "Waiting for $WAITSVC_TEXT to get reached in zone '$ZONENAME'..."
     sleep 5
     while : ; do
-        $ELEVATE_CMD zlogin -S "$ZONENAME" 'svcadm enable -ts svc:/milestone/multi-user-server:default' \
+        $ELEVATE_CMD zlogin -S "$ZONENAME" \
+                'svcadm enable -ts '"$WAITSVC_FMRI" \
             && return 0
         sleep 3
         get_zone_state "$ZONENAME" | egrep -i 'INSTALLED' >/dev/null && \
             { RES=$? ; logmsg_error "Zone '$ZONENAME' died after startup" ; return $RES; }
     done
     return $RES
+}
+
+singleuser_zone() {
+    local ZONENAME="$1"
+    zone_start_wait_svc "$ZONENAME" boot-single \
+        svc:/milestone/single-user:default \
+        "single-user milestone"
+}
+
+start_zone() {
+    local ZONENAME="$1"
+    zone_start_wait_svc "$ZONENAME" boot \
+        svc:/milestone/multi-user-server:default \
+        "multi-user-server milestone"
 }
 
 halt_zone() {
