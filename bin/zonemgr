@@ -750,6 +750,19 @@ parse_config_args() {
             -h|-help|--help) usage ; exit 0 ;;
             DEVEL_DEBUG)
                 shift 1
+
+                if [ -z "$DATASET_CONTAINMENT_GIZ_MPT" ]; then
+                    DATASET_CONTAINMENT_GIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_GIZ")" \
+                        && [ -d "$DATASET_CONTAINMENT_GIZ_MPT" ] \
+                        || logmsg_warn "Not a directory: DATASET_CONTAINMENT_GIZ_MPT='$DATASET_CONTAINMENT_GIZ_MPT'"
+                fi
+
+                if [ -z "$DATASET_CONTAINMENT_DIZ_MPT" ]; then
+                    DATASET_CONTAINMENT_DIZ_MPT="$(zfs_getMPTbyDS "$DATASET_CONTAINMENT_DIZ")" \
+                        && [ -d "$DATASET_CONTAINMENT_DIZ_MPT" ] \
+                        || logmsg_warn "Not a directory: DATASET_CONTAINMENT_DIZ_MPT='$DATASET_CONTAINMENT_DIZ_MPT'"
+                fi
+
                 logmsg_info "DEBUG-executing a single procedure: $*" >&2
                 ( set -x ; [ $# -gt 0 ] && "$@" )
                 RES_DEBUG=$?
