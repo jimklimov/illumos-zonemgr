@@ -275,3 +275,11 @@ filesystems:
    --exec-cmd "cd /export/oi-userland/components/java8 && gmake publish"
 ----
 
+* Debug a routine using some CLI settings:
+
+----
+:; ./zonemgr rollback -z test-giz-1 -s initial-install && \
+   ./zonemgr -z test-giz-1 --copy-users "jim" --elevate-user jim \
+       --mount-lofs /export/home DEVEL_DEBUG setup_zone_postinstall
+----
+
