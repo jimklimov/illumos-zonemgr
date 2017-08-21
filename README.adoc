@@ -220,6 +220,8 @@ filesystems:
 :; ./zonemgr list-giz
 
 :; ./zonemgr is-managed -z test-zone-1
+
+:; ./zonemgr -q get-state -z test-zone-1
 ----
 
 

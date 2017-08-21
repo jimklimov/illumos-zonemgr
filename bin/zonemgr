@@ -614,6 +614,7 @@ Actions: the last specified action is performed (so please only call one).
             single optional parameter with valid mix of zoneadm tokens -cpiv
     is-managed|is-diz|is-giz (NAME)     Query if the named zonename is managed
             by this script (name can be passed quickly without -z)
+    get-state (NAME)    Report current state of a zone
     verify (NAME)       Query if the named zonename has valid manifest and
             is managed by this script
     destroy             Uninstall and unconfigure the specified zone, and
@@ -840,6 +841,13 @@ parse_config_args() {
                 esac
                 ;;
             verify|validate) ACTION="verify"
+                [ -n "$TARGET_ZONE" ] || \
+                case "$2" in
+                    -*|"") ;;
+                    *)  TARGET_ZONE="$2" ; shift ;;
+                esac
+                ;;
+            get-state|getstate|state|status) ACTION="get-state"
                 [ -n "$TARGET_ZONE" ] || \
                 case "$2" in
                     -*|"") ;;
@@ -1140,6 +1148,12 @@ list_all_zones() {
     zoneadm list -cp | \
         awk -F: '{print $2}' | \
         grep -vw global
+}
+
+get_zone_state() {
+    local ZONENAME="$1"
+    zoneadm list -p -z "${ZONENAME}" | \
+        awk -F: '{print $3}'
 }
 
 ##########################################################################
@@ -2711,6 +2725,8 @@ do_zonemgr() {
             ;;
         exec-diz)
             diz_run ;;
+        get-state)
+            get_zone_state "${TARGET_ZONE}" ;;
         boot|singleuser|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
             eval "$ACTION"_zone "$TARGET_ZONE" \
                 || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
