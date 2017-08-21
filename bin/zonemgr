@@ -748,6 +748,16 @@ parse_config_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
             -h|-help|--help) usage ; exit 0 ;;
+            DEVEL_DEBUG)
+                shift 1
+                logmsg_info "DEBUG-executing a single procedure: $*" >&2
+                ( set -x ; [ $# -gt 0 ] && "$@" )
+                RES_DEBUG=$?
+                if [ "$RES_DEBUG" != 0 ]; then
+                    logmsg_error "FAILED with code $RES_DEBUG while running a single procedure: $*" >&2
+                fi
+                exit $RES_DEBUG
+                ;;
             --config)
                 parse_config_file "$2" || exit $?
                 shift
@@ -2595,17 +2605,6 @@ do_zonemgr() {
     fi
 
     settraps "exit_cleanup"
-
-    if [ "$1" = "DEVEL_DEBUG" ] ; then
-        shift 1
-        logmsg_info "DEBUG-executing a single procedure: $*" >&2
-        ( set -x ; [ $# -gt 0 ] && "$@" )
-        RES_DEBUG=$?
-        if [ "$RES_DEBUG" != 0 ]; then
-            logmsg_error "FAILED with code $RES_DEBUG while running a single procedure: $*" >&2
-        fi
-        exit $RES_DEBUG
-    fi
 
     parse_config_startup "$@"
 

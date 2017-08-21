@@ -153,9 +153,11 @@ role) via `pfexec`, and doing so from a Global zone.
 * Inside the test suite, it can be helpful to provide a configuration file
   so that only specific ZFS tree can be manipulated with different settings,
   etc. and refer to that file by `export ZONEMGR_CONF=/path/to/test.conf`.
-* For development, if the script is called with `DEVEL_DEBUG` as the first
-  option, then the rest of options can hook into a single procedure and its
-  arguments.
+* For development, if the script is called with `DEVEL_DEBUG` among its CLI
+  options, then the rest of options can hook into a single procedure and its
+  arguments. You can take advantage of CLI parser before this token, or use
+  it right away as the first one on the command line (beware that many of
+  the default variable values would not yet be applied).
 * For testing, the script supports being included. Maybe the `DEVEL_DEBUG`
   mode would move into an extra helper for unit-testing, later in evolution.
 
