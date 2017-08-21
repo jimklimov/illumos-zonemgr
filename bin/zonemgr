@@ -620,6 +620,7 @@ Actions: the last specified action is performed (so please only call one).
             destroy any automatically created VNICs, requires "-z ZONENAME"
     boot|start          Just boot the specified zone, or also wait for its
             multi-user-server milestone to get reached
+    singleuser          Boot the zone to single-user mode
     stop|halt|poweroff  Halt or quickly shutdown the specified zone
     shutdown            Gracefully shutdown the specified zone
     restart|reboot      Reboot the specified zone
@@ -850,6 +851,7 @@ parse_config_args() {
                 [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
                 ;;
             exec|run) ACTION="exec" ;;
+            singleuser|boot-single) ACTION="singleuser" ;;
             start|boot|stop|halt|poweroff|shutdown|restart) ACTION="$1" ;;
             reboot|reset) ACTION="reboot" ;;
             ready|mount) ACTION="$1" ;;
@@ -2159,7 +2161,7 @@ clone_zone() {
 }
 
 setup_zone_postinstall() {
-    ready_zone "${TARGET_ZONE}"
+    singleuser_zone "${TARGET_ZONE}"
 
     setup_zone_name
     clone_groups
@@ -2213,14 +2215,23 @@ zone_action() {
         check_is_managed_zone "$ZONENAME" || return
         logmsg_info "Trying to '$ZONEACTION' zone '$ZONENAME'..."
         case "$ZONEACTION" in
-            boot|halt|reboot|ready|mount|unmount)
+            boot|halt|reboot|ready|mount|unmount|boot-single)
                 case "$ZONEACTION" in
-                    boot|reboot|ready|mount)
+                    boot|boot-single|reboot|ready|mount)
                         secure_assigned_datasets "$ZONENAME" ;;
                 esac
-                $ELEVATE_CMD \
-                    zoneadm -z "$ZONENAME" "$ZONEACTION"
-                return $?
+                case "$ZONEACTION" in
+                    boot-single)
+                        $ELEVATE_CMD \
+                            zoneadm -z "$ZONENAME" boot -s
+                        return $?
+                        ;;
+                    *)
+                        $ELEVATE_CMD \
+                            zoneadm -z "$ZONENAME" "$ZONEACTION"
+                        return $?
+                        ;;
+                esac
                 ;;
             poweroff)
                 $ELEVATE_CMD \
@@ -2245,6 +2256,11 @@ zone_action() {
 boot_zone() {
     local ZONENAME="$1"
     zone_action boot "$ZONENAME"
+}
+
+singleuser_zone() {
+    local ZONENAME="$1"
+    zone_action boot-single "$ZONENAME"
 }
 
 start_zone() {
@@ -2695,7 +2711,7 @@ do_zonemgr() {
             ;;
         exec-diz)
             diz_run ;;
-        boot|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
+        boot|singleuser|halt|poweroff|shutdown|reboot|stop|start|restart|ready|mount|unmount)
             eval "$ACTION"_zone "$TARGET_ZONE" \
                 || clean_exit "Failed to '$ACTION' the '$TARGET_ZONE' zone"
             ;;
