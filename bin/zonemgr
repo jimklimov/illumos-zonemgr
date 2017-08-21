@@ -618,8 +618,8 @@ Actions: the last specified action is performed (so please only call one).
             is managed by this script
     destroy             Uninstall and unconfigure the specified zone, and
             destroy any automatically created VNICs, requires "-z ZONENAME"
-    start|boot          Boot the specified zone and wait for multi-user-server
-            milestone to get reached
+    boot|start          Just boot the specified zone, or also wait for its
+            multi-user-server milestone to get reached
     stop|halt|poweroff  Halt or quickly shutdown the specified zone
     shutdown            Gracefully shutdown the specified zone
     restart|reboot      Reboot the specified zone
@@ -850,8 +850,7 @@ parse_config_args() {
                 [ -n "$TARGET_ZONE" ] || TARGET_ZONE='{auto}'
                 ;;
             exec|run) ACTION="exec" ;;
-            start|boot) ACTION="boot" ;;
-            stop|halt|poweroff|shutdown|restart) ACTION="$1" ;;
+            start|boot|stop|halt|poweroff|shutdown|restart) ACTION="$1" ;;
             reboot|reset) ACTION="reboot" ;;
             ready|mount) ACTION="$1" ;;
             unmount|umount) ACTION="unmount" ;;
