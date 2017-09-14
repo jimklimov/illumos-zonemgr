@@ -1830,6 +1830,7 @@ setup_ldap() {
     TBD
 }
 
+# TBD: non-legacy setup via ipadm?
 setup_vnic_dhcp() {
     # Pre-set NICs for legacy DHCP (/etc/dhcp.VNICNAME), if not already set up.
     # Assumes zone root is mounted, and "ready" or "booted".
@@ -2274,6 +2275,11 @@ clone_zone() {
 }
 
 setup_zone_postinstall() {
+    # Note: zone must be booted, not just "ready", for the general case of
+    # non-root user setting it up. The sufficiently privileged user can log
+    # into the zone as its root to manipulate its files and services, but
+    # has hard time playing with files as root on the GZ.
+    logmsg_info "Booting '${TARGET_ZONE}' for the first time to import manifests, configure services and zone env, this can take a while"
     singleuser_zone "${TARGET_ZONE}"
 
     setup_zone_name
@@ -2285,8 +2291,10 @@ setup_zone_postinstall() {
     # If VNICs exist:
     # * Pre-set VNICs for legacy DHCP (/etc/dhcp.VNICNAME).
     # * Enable network/physical:default
-    # * Enable ipfilter? Pre-set for config via /etc/ipf/* files?
-    # * TODO: Add a CLI option for more flexible config, e.g. static?
+    # * Enable ipfilter? Pre-set for config via /etc/ipf/* files? Note props:
+    #   firewall_config_default/policy astring custom
+    #   firewall_config_default/custom_policy_file astring /etc/ipf/ipf.conf
+    # * TODO: Add a CLI option for more flexible config, e.g. static? ipadm?
     setup_zone_vnics_dhcp
 
     # TODO: Add a CLI option for custom post-install script sourced from
