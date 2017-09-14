@@ -2814,10 +2814,10 @@ do_zonemgr() {
             check_is_managed_zone "$TARGET_ZONE" || die
             list_zone_snapshot_datasets "$TARGET_ZONE" | pipe_get_snapshot_comment || die
             ;;
-    #   pkg-refresh)
-    #   pkg-upgrade)
-    #   pkg-install)
-    #   pkg-uninstall)
+        pkg-refresh) TBD ;;
+        pkg-upgrade) TBD ;;
+        pkg-install) TBD ;;
+        pkg-uninstall) TBD ;;
         exec)
             check_is_managed_zone "$TARGET_ZONE" || die
             secure_assigned_datasets "${TARGET_ZONE}"
