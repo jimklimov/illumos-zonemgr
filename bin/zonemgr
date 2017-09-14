@@ -2389,8 +2389,20 @@ zone_start_wait_svc() {
     zone_action "$ZONEACT" "$ZONENAME" || \
         { RES=$? ; logmsg_error "Zone '$ZONENAME' did not '$ZONEACT'" ; return $RES; }
 
-    get_zone_state | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null || \
-        { RES=$? ; logmsg_error "Zone '$ZONENAME' not running after trying to start it" ; return $RES; }
+    # If the zone state machine, or the host system, lag considerably -
+    # then the zone management request could have been queued but not
+    # processed instantly. Retry a few times (TODO: Make this configurable?)
+    local COUNT=5
+    logmsg_info "Waiting for zone '$ZONENAME' to wake up..."
+    while [ "$COUNT" -ge 0 ] ; do
+        get_zone_state "$ZONENAME" | egrep -vi 'CONFIGURED|INCOMPLETE' >/dev/null && break || RES=$?
+        sleep 3
+        COUNT="$(expr $COUNT - 1)"
+    done
+    if [ "$RES" != 0 ]; then
+        logmsg_error "Zone '$ZONENAME' not running after trying to start it"
+        return $RES
+    fi
 
     # TODO: Possibility for infinite loop if something hangs inside the zone
     # See https://github.com/jimklimov/illumos-smf-zones for more of this logic
