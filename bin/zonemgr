@@ -2046,6 +2046,9 @@ generate_zonename() {
     done
 
     logmsg_trace "Generated a zone name: $TRYNAME" >&2
+    if [ -n "$OUTFILE" ]; then
+        echo "GENERATED_ZONENAME='$TRYNAME'" >> "$OUTFILE"
+    fi
     echo "$TRYNAME"
 }
 
