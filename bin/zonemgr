@@ -1851,28 +1851,50 @@ EOF
 
 setup_zone_vnics_dhcp() {
     local ZONENAME="$1"
-    local NICNAME DELEGATED_NICS EXISTING_NICS
+    local NICNAME EXNICNAME DELEGATED_NICS EXISTING_NICS CHANGES_MADE=0
 
     [ -n "$ZONENAME" ] || ZONENAME="${TARGET_ZONE}"
 
     DELEGATED_NICS="$(list_delegated_nics_zonecfg "$ZONENAME")" \
-    && [ -n "$DELEGATED_NICS" ] \
-    || { logmsg_info "No NICs found delegated into zone '$ZONENAME', nothing to configure here"
-         return 0 ; }
-    # TODO: Clean up existing configs of NICs that are not delegated,
-    # in case of untidy origin zone being cloned...
+    || DELEGATED_NICS=""
 
-    for NICNAME in $DELEGATED_NICS ; do
-        setup_vnic_dhcp "$ZONENAME" "$NICNAME"
-    done
+    # Clean up existing configs of NICs that are not delegated,
+    # in case of untidy origin zone being cloned...
+    EXISTING_NICS="$($ELEVATE_CMD zlogin -S "${ZONENAME}" "cd /etc/dhcp/ && ls -1d *.dhc 2>/dev/null | sed 's,.dhc$,,' ; cd /etc/ && ls -1d hostname.* dhcp.* 2>/dev/null | sed 's,^(hostname|dhcp)\.,,'" | sort | uniq | egrep -v '^lo')"
+
+    if [ -n "$EXISTING_NICS" ] ; then
+        for EXNICNAME in $EXISTING_NICS ; do
+            if [ -n "$DELEGATED_NICS" ] ; then
+                for NICNAME in $DELEGATED_NICS ; do
+                    [ "$NICNAME" = "$EXNICNAME" ] && continue 2
+                        # go on to next EXNICNAME, don't remove
+                done
+            fi
+            # EXNICNAME not among NICNAMEs, if any are defined - remove cfg
+            logmsg_info "Removing local zone OS inherited and obsoleted config for NIC '${EXNICNAME}' in zone '${ZONENAME}'"
+            $ELEVATE_CMD zlogin -S "${ZONENAME}" "/bin/rm -f /etc/dhcp/${EXNICNAME}.dhc /etc/dhcp.${EXNICNAME} /etc/hostname.${EXNICNAME}" && CHANGES_MADE="$(expr $CHANGES_MADE + 1)"
+        done
+    fi
+
+    if [ -n "$DELEGATED_NICS" ] ; then
+        for NICNAME in $DELEGATED_NICS ; do
+            logmsg_info "Adding local zone OS DHCP config for NIC '${NICNAME}' in zone '${ZONENAME}'"
+            setup_vnic_dhcp "$ZONENAME" "$NICNAME" && CHANGES_MADE="$(expr $CHANGES_MADE + 1)"
+        done
+    else
+        logmsg_info "No NICs found delegated into zone '$ZONENAME', nothing to configure here"
+    fi
 
     # Note: when the zone is in single-user mode, we can not manipulate the
     # services normally because of "svcadm: Couldn't bind to configuration
     # repository: repository server unavailable."
-    $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
+    if [ "$CHANGES_MADE" -gt 0 ]; then
+        logmsg_info "Enabling legacy networking service in zone '${ZONENAME}'"
+        $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 svcadm disable -s svc:/network/physical:nwam || true
 svcadm enable svc:/network/physical:default
 EOF
+    fi
 }
 
 setup_zone_name() {
