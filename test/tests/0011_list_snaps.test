@@ -1,0 +1,7 @@
+RES=0
+
+$ZONEMGR_CMD list-snapshots -Z selftest-giz-01 || RES=$?
+
+$ZONEMGR_CMD list-snapshots -Z selftest-diz-01 || RES=$?
+
+exit $RES

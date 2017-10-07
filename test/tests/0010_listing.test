@@ -1,0 +1,12 @@
+RES=0
+
+echo "List all managed zones:"
+$ZONEMGR_CMD list || RES=$?
+
+echo "List all managed DIZ zones:"
+$ZONEMGR_CMD list-diz || RES=$?
+
+echo "List all managed GIZ zones:"
+$ZONEMGR_CMD list-giz || RES=$?
+
+exit $RES

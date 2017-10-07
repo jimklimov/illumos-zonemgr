@@ -1,0 +1,9 @@
+RES=0
+
+$ZONEMGR_CMD create-giz -z selftest-giz-01 || RES=$?
+
+$ZONEMGR_CMD list-giz -z selftest-giz-01 || RES=$?
+
+$ZONEMGR_CMD verify -z selftest-giz-01 || RES=$?
+
+exit $RES
