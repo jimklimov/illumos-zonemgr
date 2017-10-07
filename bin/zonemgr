@@ -2682,17 +2682,38 @@ rollback_zone() {
 destroy_zone_snapshot() {
     local ZONENAME="$1"
     local SNAPCOMMENT="$2"
-    local D SNAP_RES
+    local D DD SNAP_RES
 
     logmsg_info "Destroying snapshot '${SNAPCOMMENT}' of zone '${ZONENAME}'"
     check_is_managed_zone "$ZONENAME" || return
 
-    TBD
-    # TODO: a simplified variant of destroy_zone() and rollback_zone()
+    # Use a simplified variant of destroy_zone() and rollback_zone()
     # codebase, with purpose to consistently drop intermediate snapshots
     # of zone-related datasets that are deemed unneeded by an admin user.
     # Nothing to remount, restart, etc. - though should hiccup on clones
     # and similar cases that can not be destroyed silently.
+    local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
+    local ZONEROOT_DS="`zfs_getDSbyMPT "${ZONEROOT_MPT}"`" || return
+    local DELEGATED_DATASETS="`list_assigned_datasets ${ZONENAME}`"
+
+    SNAP_RES=0
+    for D in "$ZONEROOT_DS" $DELEGATED_DATASETS ; do
+        for DD in $(zfs list -Honame -t filesystem -r "$D"|grep /) \
+                $(zfs list -Honame -t volume -r "$D"|grep /) \
+        ; do
+            zfs list "$DD@$SNAPCOMMENT" > /dev/null 2>&1 || \
+                { SNAP_RES=$?
+                  logmsg_warn "ZFS dataset snapshot $DD@$SNAPCOMMENT did not exist, can not destroy it (skipped)"
+                  continue; }
+            logmsg_info "Destroying ZFS dataset snapshot $DD@$SNAPCOMMENT ..."
+	    $ELEVATE_CMD zfs destroy "$DD@$SNAPCOMMENT" || SNAP_RES=$?
+        done
+    done
+    [ "$SNAP_RES" = 0 ] || \
+        logmsg_warn "Could not destroy some dataset snapshots, seek details above." \
+        "Maybe you need to zfs-promote datasets for a clone of this zone?"
+
+    return $SNAP_RES
 }
 
 # Run a command inside the zone (via zlogin), maybe as a specified account
@@ -2896,7 +2917,7 @@ do_zonemgr() {
                 logmsg_info "Rolling back the zone '$TARGET_ZONE' because exec ended with code $STACK_RES and EXEC_DISCARD='$EXEC_DISCARD'"
                 stop_zone "$TARGET_ZONE" || die
                 rollback_zone "$TARGET_ZONE" "$EXEC_SNAPCOMMENT" || die
-                #TBD# destroy_zone_snapshot "$TARGET_ZONE" "$EXEC_SNAPCOMMENT" || die
+                destroy_zone_snapshot "$TARGET_ZONE" "$EXEC_SNAPCOMMENT" || die
                 if [ "$OLD_ZONE_STATE" = running ] ; then
                     start_zone "$TARGET_ZONE" || die
                 fi
