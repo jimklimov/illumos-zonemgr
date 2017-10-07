@@ -559,9 +559,11 @@ Options: if conflicting options are specified, then the last one wins
             specified origin, or from template)
     --exec-cmd SCRIPT   Execute the command in the zone via zlogin
     --exec-user NAME    ...as the specified LZ-defined user account (or -S)
-    --exec-discard off|always|onsuccess    Discard the zone after running the
-            command? Defaults to "off" usually, and to "always"
-            for "exec-diz" action
+    --exec-discard off|always|onsuccess(|onfail)    Discard the zone after
+            running the command? Defaults to "off" usually, and to "always"
+            for "exec-diz" action. Can also be "onfail" for "exec" action;
+            note that for "exec" an existing zone is used and can be rolled
+            back (or not) after the executed job.
 
 Add LZ network interfaces as dedicated VNICs (exclusive IP mode) that will
 be DHCP enabled (the GZ may serve DHCP+NAT over an etherstub for example):
@@ -609,7 +611,8 @@ Actions: the last specified action is performed (so please only call one).
             with settings specified by CLI and/or custom config,
             runs a command in this zone, and discards the zone
     exec                Using an existing zone, runs a command in it (boots
-            it up if needed - and halts afterwards in this case)
+            it up if needed - and halts afterwards in this case; optionally
+            can roll back after the job - see --exec-discard options above)
     list|list-diz|list-giz    List zones managed by this script, accepts a
             single optional parameter with valid mix of zoneadm tokens -cpiv
     is-managed|is-diz|is-giz (NAME)     Query if the named zonename is managed
@@ -2104,13 +2107,24 @@ generate_zonecfg_script() {
 }
 
 # Snapshot a zone
+generate_snap_comment() {
+    local SNAPCOMMENT_PREFIX="$1"
+    local SNAPCOMMENT=""
+    if [ -z "$SNAPCOMMENT_PREFIX" ] ; then
+        SNAPCOMMENT_PREFIX="autozone"
+    fi
+    logmsg_debug "Generating a snapshot comment using timestamp or PID"
+    SNAPCOMMENT="$SNAPCOMMENT_PREFIX-`timestamp_now`" || \
+        SNAPCOMMENT="$SNAPCOMMENT_PREFIX-$$"
+    echo "$SNAPCOMMENT"
+}
+
 snapshot_zone() {
     local ZONENAME="$1"
     local SNAPCOMMENT="$2"
     if [ -z "$SNAPCOMMENT" ] ; then
         logmsg_info "No snapshot comment specified for the zone, using timestamp or PID"
-        SNAPCOMMENT="autozone-`timestamp_now`" || \
-            SNAPCOMMENT="autozone-$$"
+        SNAPCOMMENT="`generate_snap_comment`"
     fi
 
     logmsg_info "Snapshotting zone '${ZONENAME}'@'${SNAPCOMMENT}'"
@@ -2860,21 +2874,38 @@ do_zonemgr() {
         pkg-upgrade) TBD ;;
         pkg-install) TBD ;;
         pkg-uninstall) TBD ;;
-        exec)
+        exec) # Use existing zone, maybe roll it back afterwards
             check_is_managed_zone "$TARGET_ZONE" || die
             secure_assigned_datasets "${TARGET_ZONE}"
             OLD_ZONE_STATE="`get_zone_state "$TARGET_ZONE"`"
+            EXEC_SNAPCOMMENT=""
+            if [ -n "$EXEC_DISCARD" ] && [ "$EXEC_DISCARD" != off ] ; then
+                EXEC_SNAPCOMMENT="`generate_snap_comment`"
+                snapshot_zone "$TARGET_ZONE" "$EXEC_SNAPCOMMENT"
+            fi
             if [ "$OLD_ZONE_STATE" != running ] ; then
                 start_zone "$TARGET_ZONE" || die
             fi
             RUN_RES=0
             run_in_zone || RUN_RES=$?
-            if [ "$OLD_ZONE_STATE" != running ] ; then
+            if [ "$RUN_RES" = 0 -a "$EXEC_DISCARD" = onsuccess ] || \
+               [ "$RUN_RES" != 0 -a "$EXEC_DISCARD" = onfail ] || \
+               [ "$EXEC_DISCARD" = always ] ; then
+                logmsg_info "Rolling back the zone '$TARGET_ZONE' because exec ended with code $STACK_RES and EXEC_DISCARD='$EXEC_DISCARD'"
                 stop_zone "$TARGET_ZONE" || die
+                rollback_zone "$TARGET_ZONE" "$EXEC_SNAPCOMMENT" || die
+                #TBD# destroy_zone_snapshot "$TARGET_ZONE" "$EXEC_SNAPCOMMENT" || die
+                if [ "$OLD_ZONE_STATE" = running ] ; then
+                    start_zone "$TARGET_ZONE" || die
+                fi
+            else
+                if [ "$OLD_ZONE_STATE" != running ] ; then
+                    stop_zone "$TARGET_ZONE" || die
+                fi
             fi
             clean_exit $RUN_RES
             ;;
-        exec-diz)
+        exec-diz) # Use discardable zone - create and discard it
             diz_run ;;
         get-state)
             get_zone_state "${TARGET_ZONE}" ;;
