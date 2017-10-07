@@ -146,6 +146,9 @@ role) via `pfexec`, and doing so from a Global zone.
 
 === Notes for testing
 
+* A basic test-driver script is added at `test/zonemgr_selftest.sh` to run
+  further snippets maintained in `test/tests/*.test` files (per its default
+  search) or in any full filename it can source.
 * Test-suite is wanted :) It would help to both keep track of usage scenarios
   (implemented => non-regression, and planned => TDD until it works), and to
   serve as practical documentation of script's abilities and the command-line
