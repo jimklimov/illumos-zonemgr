@@ -1,0 +1,5 @@
+RES=$?
+
+$ZONEMGR_CMD destroy -z selftest-diz-01 || RES=$?
+
+exit $RES

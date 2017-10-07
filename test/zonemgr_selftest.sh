@@ -3,6 +3,12 @@
 # Selftest framework for zonemgr.
 # Note that the user running it should have pre-set appropriate permissions
 # and system privileges (RBAC for pfexec by default, sudo etc. experimentally)
+# Test snippets generally run sourced from sub-directories; the default set
+# in "./tests" requires that the sandbox of a GIZ and DIZ to manipulate has
+# been pre-created with snippets from "./tests-0001-init". This sandbox can
+# be cleared by snippets from "./tests-9999-teardown".
+#   ./zonemgr_selftest.sh tests-9999-teardown/ --no-fail-fast
+#   ./zonemgr_selftest.sh tests-0001-init/
 # Copyright (C) 2017 by Jim Klimov
 
 usage() {
@@ -25,7 +31,11 @@ while [ "$#" -gt 0 ]; do
         --failfast|--fail-fast) FAILFAST=1 ;;
         --no-failfast|--no-fail-fast) FAILFAST=0 ;;
         -*)  echo "ERROR: Unrecognized argument: $1" >&2 ; exit 1;;
-        */*) TESTS="$TESTS $1" ;;
+        */*) if [ -d "$1" ]; then
+                TESTS="$TESTS `ls -1 $1/*.test`"
+             else
+                TESTS="$TESTS $1"
+             fi ;;
         *)   TESTS="$TESTS $TESTDIR/`basename "$1" .test`.test" ;;
     esac
     shift
