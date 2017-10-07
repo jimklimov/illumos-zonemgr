@@ -31,12 +31,25 @@ while [ "$#" -gt 0 ]; do
         --failfast|--fail-fast) FAILFAST=1 ;;
         --no-failfast|--no-fail-fast) FAILFAST=0 ;;
         -*)  echo "ERROR: Unrecognized argument: $1" >&2 ; exit 1;;
-        */*) if [ -d "$1" ]; then
+        /*) if [ -d "$1" ]; then
                 TESTS="$TESTS `ls -1 $1/*.test`"
              else
                 TESTS="$TESTS $1"
              fi ;;
-        *)   TESTS="$TESTS $TESTDIR/`basename "$1" .test`.test" ;;
+        */*) if [ -d "$1" ]; then
+                TESTS="$TESTS `ls -1 $(pwd)/$1/*.test`"
+             else
+                TESTS="$TESTS `pwd`/$1"
+             fi ;;
+        *)   if [ -d "$1" ]; then
+                TESTS="$TESTS `ls -1 $(pwd)/$1/*.test`"
+             else
+                if [ -f "$1" ]; then
+                    TESTS="$TESTS `pwd`/$1"
+                 else
+                    TESTS="$TESTS $TESTDIR/`basename "$1" .test`.test"
+                 fi
+             fi ;;
     esac
     shift
 done
