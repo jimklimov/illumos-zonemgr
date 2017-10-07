@@ -2638,7 +2638,9 @@ rollback_zone() {
     # and done by a human admin - so we do not automate them here now.
     SNAP_RES=0
     for D in "$ZONEROOT_DS" `list_assigned_datasets ${ZONENAME}` ; do
-        for DD in $(zfs list -Honame -t filesystem -r "$D"|grep /) $(zfs list -Honame -t volume -r "$D"|grep /) ; do
+        for DD in $(zfs list -Honame -t filesystem -r "$D"|grep /) \
+                $(zfs list -Honame -t volume -r "$D"|grep /) \
+        ; do
             zfs list "$DD@$SNAPCOMMENT" > /dev/null 2>&1 || \
                 { SNAP_RES=$?
                   logmsg_warn "Snapshot $DD@$SNAPCOMMENT did not exist, can not roll back"
