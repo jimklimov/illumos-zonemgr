@@ -1,6 +1,26 @@
 RES=0
 
-echo "=== Execute 'hostname; ifconfig -a; date' in a DIZ zone and roll it back to state before boot (don't mind zonemgr overhead on console, depending on debug level)"
-$ZONEMGR_CMD exec -z selftest-diz-01 --exec-cmd "hostname; ifconfig -a; date" --exec-discard always || RES=$?
+ZONESNAP="$($ZONEMGR_CMD -d 0 DEVEL_DEBUG generate_snap_comment 2>/dev/null)" && [ -n "$ZONESNAP" ] || exit $?
+
+echo "=== Request DIZ status"
+$ZONEMGR_CMD status -z selftest-diz-01 || exit $?
+
+echo "=== Shutdown DIZ (if running)"
+$ZONEMGR_CMD shutdown -z selftest-diz-01 || true
+
+echo "=== Snapshot DIZ"
+$ZONEMGR_CMD snapshot -z selftest-diz-01 -s "$ZONESNAP" || RES=$?
+
+echo "=== Boot DIZ until usable"
+$ZONEMGR_CMD start -z selftest-diz-01 || RES=$?
+
+echo "=== Execute 'hostname; ifconfig -a; date' in a DIZ zone and do not roll it back"
+$ZONEMGR_CMD exec -z selftest-diz-01 --exec-cmd "hostname; ifconfig -a; date" --exec-discard off || RES=$?
+
+echo "=== Halt DIZ"
+$ZONEMGR_CMD halt -z selftest-diz-01 || RES=$?
+
+echo "=== Roll back DIZ"
+$ZONEMGR_CMD rollback -z selftest-diz-01 -s "$ZONESNAP" || RES=$?
 
 exit $RES
