@@ -1,5 +1,0 @@
-RES=0
-
-$ZONEMGR_CMD exec -z selftest-diz-01 --exec-cmd "hostname; ifconfig -a; date" --exec-discard always || RES=$?
-
-exit $RES

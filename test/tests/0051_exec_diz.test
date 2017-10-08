@@ -1,0 +1,6 @@
+RES=0
+
+echo "=== Execute 'hostname; ifconfig -a; date' in a DIZ zone and roll it back to state before boot (don't mind zonemgr overhead on console, depending on debug level)"
+$ZONEMGR_CMD exec -z selftest-diz-01 --exec-cmd "hostname; ifconfig -a; date" --exec-discard always || RES=$?
+
+exit $RES
