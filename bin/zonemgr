@@ -1194,9 +1194,15 @@ get_zone_state() {
 
 # Let specify image template type (linked, brand, etc.) to set up the config
 zonecfg_snippet_create() {
-    if [ -n "$ORIGIN_GIZ" ] ; then
+    local ZONENAME="$1"
+
+    if [ -n "$ORIGIN_GIZ" ] && [ "$ORIGIN_GIZ" != "$ZONENAME" ] ; then
+        # The ACTION is (likely) to create-giz or create-diz based on a
+        # *different* origin giz (e.g. not initial auto-creation of an
+        # origin zone to clone subsequently).
         echo "create -t $ORIGIN_GIZ"
     else
+        # The ACTION is to create a new zone from scratch
         if [ -n "$TEMPLATE_GIZ" ] ; then
             echo "create -t $TEMPLATE_GIZ"
         else
@@ -1209,7 +1215,8 @@ zonecfg_snippet_create() {
 # Minimal config zone-wise (no resources, filesystem/dataset provisions,
 # exclusive networking, user accounts...); set autoboot:=false
 zonecfg_snippet_basics() {
-    [ -n "$TARGET_ZONE" ] || die "TARGET_ZONE is not defined"
+    local ZONENAME="$1"
+    [ -n "$ZONENAME" ] || die "ZONENAME is not defined"
 
     cat << EOF
 set ip-type=exclusive
@@ -1217,9 +1224,9 @@ set autoboot=false
 EOF
 
     case "$ACTION" in
-        create-giz) echo "set zonepath=$DATASET_CONTAINMENT_GIZ_MPT/$TARGET_ZONE" ;;
-        create-diz) echo "set zonepath=$DATASET_CONTAINMENT_DIZ_MPT/$TARGET_ZONE" ;;
-        *) logmsg_warn "Uncertain which containment dataset to use for ACTION='$ACTION', so none was set for zone '$TARGET_ZONE'" ;;
+        create-giz) echo "set zonepath=$DATASET_CONTAINMENT_GIZ_MPT/$ZONENAME" ;;
+        create-diz) echo "set zonepath=$DATASET_CONTAINMENT_DIZ_MPT/$ZONENAME" ;;
+        *) logmsg_warn "Uncertain which containment dataset to use for ACTION='$ACTION', so none was set for zone '$ZONENAME'" ;;
     esac
 }
 
@@ -1237,8 +1244,10 @@ EOF
 
 # Add metadata (zonecfg field) to track which GIZ this image was built from
 zonecfg_snippet_attr_origin() {
+    local ZONENAME="$1"
+
     VAL="undefined"
-    if [ -n "$ORIGIN_GIZ" ] ; then
+    if [ -n "$ORIGIN_GIZ" ] && [ "$ORIGIN_GIZ" != "$ZONENAME" ] ; then
         VAL="giz:$ORIGIN_GIZ"
     else
         if [ -n "$TEMPLATE_GIZ" ] ; then
@@ -1481,7 +1490,8 @@ remove_vnic_zonecfg_all() {
 # TBD: Constrain resources (cap memory/swap, set cpu-shares, ncpus and/or
 # host-defined resource pools in zonecfg; set tmpfs limits in vfstab)
 zonecfg_snippet_assign_nic() {
-    local NICNAME="$1"
+    local ZONENAME="$1" # Unused ATM
+    local NICNAME="$2"
     cat << EOF
 add net
 set physical=$NICNAME
@@ -1497,14 +1507,17 @@ zonecfg_snippet_assign_use_vnics() {
     # Technically the existing interface may also be a normal dedicated NIC
     # but that is such a rare case nowadays, so this routine and vars are
     # named for VNICs to match similar other code.
+    local ZONENAME="$1" # Unused ATM
     local VNIC
 
     for VNIC in $USE_VNICS ; do
-        zonecfg_snippet_assign_nic "$VNIC"
+        zonecfg_snippet_assign_nic "$ZONENAME" "$VNIC"
     done
 }
 
 zonecfg_snippet_assign_auto_vnics() {
+    local ZONENAME="$1"
+    shift
     local VNICS
     local LVM_LIST="$*"
     if [ $# = 0 ] || [ -z "$LVM_LIST" ]; then
@@ -1537,7 +1550,7 @@ zonecfg_snippet_assign_auto_vnics() {
         NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] \
             || die "Failed to create VNIC by spec: $LVM"
         [ -z "$VNICS" ] && VNICS="$NEWVNIC|$LVM" || VNICS="$VNICS $NEWVNIC|$LVM"
-        zonecfg_snippet_assign_nic "$NEWVNIC"
+        zonecfg_snippet_assign_nic "$ZONENAME" "$NEWVNIC"
     done
 
     if [ -n "$VNICS" ]; then
@@ -1552,7 +1565,8 @@ EOF
 }
 
 zonecfg_snippet_assign_dataset() {
-    local DSNAME="$1"
+    local ZONENAME="$1" # Unused ATM
+    local DSNAME="$2"
     cat << EOF
 add dataset
 set name=$DSNAME
@@ -1563,26 +1577,33 @@ EOF
 zonecfg_snippet_unassign_dataset() {
     # Just stop listing the delegated dataset in this zone config
     # This does not remove or change the ZFS dataset itself
-    local DSNAME="$1"
+    local ZONENAME="$1" # Unused ATM
+    local DSNAME="$2"
     echo "remove dataset name=$DSNAME"
 }
 
 zonecfg_snippet_assign_dataset_list() {
+    local ZONENAME="$1" # Unused ATM
+    shift
+
     # $1 == ADD_DELEGATED_DATASET, a whitespace-separated list
     if [ -n "$1" ]; then
         local DSNAME
         for DSNAME in $1 ; do
-	    zonecfg_snippet_assign_dataset "$DSNAME"
+	    zonecfg_snippet_assign_dataset "$ZONENAME" "$DSNAME"
         done
     fi
 }
 
 zonecfg_snippet_unassign_dataset_list() {
-    # $1 == ADD_DELEGATED_DATASET, a whitespace-separated list
+    local ZONENAME="$1" # Unused ATM
+    shift
+
+    # $1 == REM_DELEGATED_DATASET, a whitespace-separated list
     if [ -n "$1" ]; then
         local DSNAME
         for DSNAME in $1 ; do
-	    zonecfg_snippet_unassign_dataset "$DSNAME"
+	    zonecfg_snippet_unassign_dataset "$ZONENAME" "$DSNAME"
         done
     fi
 }
@@ -1621,8 +1642,9 @@ secure_assigned_datasets() {
 }
 
 zonecfg_snippet_assign_lofs() {
-    local ZONEDIR="$1"
-    local HOSTDIR="$2"
+    local ZONENAME="$1" # Unused ATM
+    local ZONEDIR="$2"
+    local HOSTDIR="$3"
     [ -n "${HOSTDIR-}" ] || HOSTDIR="${ZONEDIR-}"
     [ -n "${ZONEDIR-}" ] || die "Bad args to zonecfg_snippet_assign_lofs()"
     cat << EOF
@@ -1636,19 +1658,25 @@ EOF
 }
 
 zonecfg_snippet_assign_lofs_list() {
+    local ZONENAME="$1" # Unused ATM
+    shift
+
     # $1 = $ADD_MOUNT_LOFS, list of "lzpath[|gzpath] lzpath2[|gzpath2] ..."
     local LZPATH GZPATH L_G
     if [ -n "$1" ]; then
         for L_G in $1 ; do
             LZPATH="`echo "$L_G" | ( IFS='|' read _1 _2 ; echo "${_1}" )`"
             GZPATH="`echo "$L_G" | ( IFS='|' read _1 _2 ; echo "${_2}" )`"
-            zonecfg_snippet_assign_lofs "$LZPATH" "$GZPATH"
+            zonecfg_snippet_assign_lofs "$ZONENAME" "$LZPATH" "$GZPATH"
         done
     fi
 }
 
 zonecfg_snippet_assign_autonfs() {
     TBD
+
+    local ZONENAME="$1" # Unused ATM
+    shift
 }
 
 zonecfg_snippet_assign_autonfs_list() {
@@ -1656,13 +1684,16 @@ zonecfg_snippet_assign_autonfs_list() {
     # and enablement of the autofs and nfs/client services.
     # Oh, and configs. And /etc/hosts or DNS or ldap naming, perhaps...
 
+    local ZONENAME="$1" # Unused ATM
+    shift
+
     # $1 = $ADD_MOUNT_AUTONFS, list of "lzpath|NFSurl lzpath2|NFSurl2 ..."
     local LZPATH NFSURL L_N
     if [ -n "$1" ]; then
         for L_N in $1 ; do
             LZPATH="`echo "$L_N" | ( IFS='|' read _1 _2 ; echo "${_1}" )`"
             NFSURL="`echo "$L_N" | ( IFS='|' read _1 _2 ; echo "${_2}" )`"
-            zonecfg_snippet_assign_autonfs "$LZPATH" "$NFSURL"
+            zonecfg_snippet_assign_autonfs "$ZONENAME" "$LZPATH" "$NFSURL"
         done
     fi
 }
@@ -2084,31 +2115,38 @@ generate_zonename() {
 }
 
 generate_zonecfg_snippets() {
-    logmsg_trace "Generating zonecfg snippets..." >&2
+    local ZONENAME="$1"
+    logmsg_trace "Generating zonecfg snippets for '$ZONENAME'..." >&2
 
-    zonecfg_snippet_create
-    zonecfg_snippet_basics
-    zonecfg_snippet_attr_origin
+    zonecfg_snippet_create "$ZONENAME"
+    zonecfg_snippet_basics "$ZONENAME"
+    zonecfg_snippet_attr_origin "$ZONENAME"
     # TBD: Should a GIZ have no auto-vnics? Or can it have some,
     # just like datasets for DIZ's to replicate too when cloning?
     #[ "$ACTION" = create-diz ] && \
-    zonecfg_snippet_assign_auto_vnics
-    zonecfg_snippet_assign_use_vnics
+    zonecfg_snippet_assign_auto_vnics "$ZONENAME"
+    zonecfg_snippet_assign_use_vnics "$ZONENAME"
 
-    zonecfg_snippet_assign_dataset_list "$ADD_DELEGATED_DATASET"
-    zonecfg_snippet_assign_lofs_list "$ADD_MOUNT_LOFS"
-    # TBD # zonecfg_snippet_assign_autonfs_list "$ADD_MOUNT_AUTONFS"
+    zonecfg_snippet_assign_dataset_list "$ZONENAME" "$ADD_DELEGATED_DATASET"
+    zonecfg_snippet_assign_lofs_list "$ZONENAME" "$ADD_MOUNT_LOFS"
+    # TBD # zonecfg_snippet_assign_autonfs_list "$ZONENAME" "$ADD_MOUNT_AUTONFS"
     echo "verify"
     echo "commit"
 
-    logmsg_trace "Generated zonecfg snippets" >&2
+    logmsg_trace "Generated zonecfg snippets for '$ZONENAME'" >&2
 }
 
 generate_zonecfg_script() {
-    logmsg_trace "Generating zonecfg script..." >&2
-    ZONECFG_SCRIPT="$(generate_zonecfg_snippets)" && [ -n "$ZONECFG_SCRIPT" ] \
+    local ZONENAME="$1"
+
+    [ -z "$ZONENAME" ] && ZONENAME="$TARGET_ZONE"
+    [ -z "$ZONENAME" ] && die "No ZONENAME provided to generate_zonecfg_script()"
+
+    logmsg_trace "Generating zonecfg script for '$ZONENAME'..." >&2
+    ZONECFG_SCRIPT="$(generate_zonecfg_snippets  "$ZONENAME")" \
+        && [ -n "$ZONECFG_SCRIPT" ] \
         || die "Could not generate ZONECFG_SCRIPT"
-    logmsg_trace "Generated zonecfg script" >&2
+    logmsg_trace "Generated zonecfg script for '$ZONENAME'" >&2
 }
 
 # Snapshot a zone
@@ -2219,33 +2257,42 @@ verify_zone() {
     check_is_managed_zone "$ZONENAME"
 }
 
-install_zone() {
-    if [ -z "$TARGET_ZONE" ] ; then
-        TARGET_ZONE="$(generate_zonename)"
-        logmsg_warn "A TARGET_ZONE name was not provided, generated '$TARGET_ZONE'"
-    fi
-    logmsg_info "Verifying that zone '${TARGET_ZONE}' is not yet configured..."
-    if check_is_managed_zone "$TARGET_ZONE" ; then
-        die "Could not configure zone '$TARGET_ZONE': it already exists, destroy it first if needed"
+configure_zone() {
+    # Create zone configuration in the OS registry - no datasets, no install
+    local ZONENAME="$1"
+
+    logmsg_info "Verifying that zone '${ZONENAME}' is not yet configured..."
+    if check_is_managed_zone "$ZONENAME" ; then
+        die "Could not configure zone '$ZONENAME': it already exists, destroy it first if needed"
         # TBD: forcing or re-creation is not supported by the script... should it be?
     fi
 
-    generate_zonecfg_script
+    generate_zonecfg_script "$ZONENAME"
 
-    logmsg_info "Configuring zone '${TARGET_ZONE}' with the following zonecfg script:" \
+    logmsg_info "Configuring zone '${ZONENAME}' with the following zonecfg script:" \
         "
 =======
 ${ZONECFG_SCRIPT}
 =======
 "
 
-    echo "$ZONECFG_SCRIPT" | $ELEVATE_CMD zonecfg -z "${TARGET_ZONE}" \
-        || die "Could not configure zone '$TARGET_ZONE' with this script:
+    echo "$ZONECFG_SCRIPT" | $ELEVATE_CMD zonecfg -z "${ZONENAME}" \
+        || die "Could not configure zone '$ZONENAME' with this script:
 =======
 $ZONECFG_SCRIPT
 ======="
-    verify_zone "${TARGET_ZONE}"
-    secure_assigned_datasets "${TARGET_ZONE}"
+    verify_zone "${ZONENAME}"
+}
+
+install_zone() {
+    # Create datasets and install packages
+    local ZONENAME="$1"
+
+    # Note: datasets we want should better be pre-created by us rather than
+    # a zone-brand script, so we ensure it lands in the pool desired by the
+    # user.
+    secure_assigned_datasets "${ZONENAME}" \
+        || die "Could not ensure datasets for '$ZONENAME'"
 
     # TBD: Older Solarises - precreate zoneroot dataset?
     # TBD: Use args to template+brand based install to specify publishers
@@ -2255,20 +2302,35 @@ $ZONECFG_SCRIPT
     # add/remove packages - using pkg -R from GZ.
     # TODO: Discover how the host GZ uses multiple publishers (its own)
     # by default, when running "install" without the publisher option?
-    logmsg_info "Installing zone '${TARGET_ZONE}' (note: at this time special options like publisher and pkg lists are not handled yet)"
-    $ELEVATE_CMD zoneadm -z "${TARGET_ZONE}" install \
-        || die "Could not install zone '$TARGET_ZONE'"
-    snapshot_zone "${TARGET_ZONE}" "initial-install"
+    logmsg_info "Installing zone '${ZONENAME}' (note: at this time special options like publisher and pkg lists are not handled yet)"
+    $ELEVATE_CMD zoneadm -z "${ZONENAME}" install \
+        || die "Could not install zone '$ZONENAME'"
+    snapshot_zone "${ZONENAME}" "initial-install"
 
     # Add pkgs/pubs?
-    logmsg_info "Post-Install processing for zone '${TARGET_ZONE}'"
-    setup_zone_postinstall
-    snapshot_zone "${TARGET_ZONE}" "initial-postinstalled"
+}
+
+create_zone() {
+    # Configure, install, set up and initial-snapshot an instance of
+    # a zone from scratch (usually an original GIZ)
+    local ZONENAME="$1"
+
+    [ -n "$ZONENAME" ] || ZONENAME="$TARGET_ZONE"
+    if [ -z "$ZONENAME" ] ; then
+        ZONENAME="$(generate_zonename)"
+        logmsg_warn "A TARGET_ZONE name was not provided, generated '$ZONENAME'"
+    fi
+
+    configure_zone "${ZONENAME}"
+    install_zone "${ZONENAME}"
+    setup_zone_postinstall "${ZONENAME}"
+    snapshot_zone "${ZONENAME}" "initial-postinstalled"
 }
 
 # Clone a zone (clone current state, last or specified snapshot)
 # This may become a better tuned and flexible solution than "zoneadm clone"
 clone_zone() {
+    # Note: no "local ZONENAME" in this routine
     # If TARGET_ZONE is not set, generate one
     if [ -z "$TARGET_ZONE" ] ; then
         TARGET_ZONE="$(generate_zonename)"
@@ -2292,7 +2354,8 @@ clone_zone() {
         # desirable behavior (should we let clone DIZ if asked explicitly)?
         logmsg_info "An ORIGIN_GIZ='$ORIGIN_GIZ' was not installed," \
             "preparing it as a GIZ to clone later into TARGET_ZONE='$TARGET_ZONE' DIZ"
-        ( TARGET_ZONE="$ORIGIN_GIZ" ; install_zone ) \
+        ( TARGET_ZONE="$ORIGIN_GIZ" ; ORIGIN_GIZ=""; USE_VNICS="";
+          create_zone "$TARGET_ZONE" ) \
             || die "FAILED to install an ORIGIN_GIZ='$ORIGIN_GIZ'"
     fi
 
@@ -2311,7 +2374,7 @@ clone_zone() {
     #   secure_assigned_datasets "${TARGET_ZONE}"
     # TBD : verify that origin NICs (if any - should not be in a golden image
     # in the first place) are not used in new zone
-    setup_zone_postinstall
+    setup_zone_postinstall "${TARGET_ZONE}"
     snapshot_zone "${TARGET_ZONE}" "clone-postinstalled"
 }
 
@@ -2320,9 +2383,17 @@ setup_zone_postinstall() {
     # non-root user setting it up. The sufficiently privileged user can log
     # into the zone as its root to manipulate its files and services, but
     # has hard time playing with files as root on the GZ.
-    logmsg_info "Booting '${TARGET_ZONE}' for the first time to import manifests, configure services and zone env, this can take a while"
-    singleuser_zone "${TARGET_ZONE}"
+    local ZONENAME="$1"
 
+    [ -n "$ZONENAME" ] || ZONENAME="$TARGET_ZONE"
+    [ -n "$ZONENAME" ] || die "No ZONENAME for setup_zone_postinstall()"
+
+    logmsg_info "Post-Install processing for zone '${ZONENAME}'..."
+
+    logmsg_info "Booting '${ZONENAME}' for the first time to import manifests, configure services and zone env, this can take a while"
+    singleuser_zone "${ZONENAME}"
+
+    # TODO: Setup timezone (host OS? UTC?) by default or specified somehow
     setup_zone_name
     clone_groups
     clone_users
@@ -2336,14 +2407,14 @@ setup_zone_postinstall() {
     #   firewall_config_default/policy astring custom
     #   firewall_config_default/custom_policy_file astring /etc/ipf/ipf.conf
     # * TODO: Add a CLI option for more flexible config, e.g. static? ipadm?
-    setup_zone_vnics_dhcp
+    setup_zone_vnics_dhcp "$ZONENAME"
 
     # TODO: Add a CLI option for custom post-install script sourced from
     # this one into a subshell (inheriting the variables and functions),
     # so end-users can copy more files, etc. Running still in GZ context,
     # thus chrooting/zlogin'ing is up to that scripter.
 
-    halt_zone "${TARGET_ZONE}"
+    halt_zone "${ZONENAME}"
 }
 
 # pkg-update contents of a (golden-image?) zone, snapshot after success
@@ -2359,11 +2430,13 @@ upgrade_zone() {
 
 # Configure specified publisher(s) into the named zone, snapshot after success
 install_publishers() {
+    local ZONENAME="$1"
     TBD
 }
 
 # Install specified package(s) into the named zone, snapshot after success
 install_packages() {
+    local ZONENAME="$1"
     TBD
 }
 
@@ -2832,7 +2905,7 @@ do_zonemgr() {
     # Remember to use check_is_managed_zone() before acting on existing zones
     case "$ACTION" in
         create-giz)
-            install_zone ;;
+            create_zone ;;
         create-diz)
             # Would first create a matching GIZ if missing
             clone_zone ;;
