@@ -945,7 +945,12 @@ parse_config_startup() {
     if [ "$DO_PRINT_CONFIG" = 1 ] || \
        [ "$ZONEMGR_DEBUG" -gt "$ZONEMGR_DEBUGLEVEL_INFO" ] \
     ; then
+        local saveZONEMGR_DEBUG="$ZONEMGR_DEBUG"
+        if [ "$ZONEMGR_DEBUG" -lt "$ZONEMGR_DEBUGLEVEL_INFO" ]; then
+            ZONEMGR_DEBUG="$ZONEMGR_DEBUGLEVEL_INFO"
+        fi
         print_config
+        ZONEMGR_DEBUG="$saveZONEMGR_DEBUG"
     fi
 
     ZONECFG_SCRIPT=""
