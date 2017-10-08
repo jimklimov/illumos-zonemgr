@@ -2542,6 +2542,7 @@ unmount_zone() {
 # Destroy a zone (including config, delegated datasets, zoneroot and VNICs)
 destroy_zone() {
     local ZONENAME="$1"
+    local DESTROY_RES=0
     check_is_managed_zone "$ZONENAME" || return $?
 
     local ZONEROOT_MPT="`get_zone_root "${ZONENAME}"`" || return
@@ -2550,13 +2551,18 @@ destroy_zone() {
 
     delete_vnics_zone "$ZONENAME"
 
-    stop_zone "$ZONENAME"
-    unmount_zone "$ZONENAME"
+    stop_zone "$ZONENAME" || true
+    unmount_zone "$ZONENAME" || true
 
-    logmsg_info "Uninstalling zone '$ZONENAME'..."
-    $ELEVATE_CMD zoneadm -z "$ZONENAME" uninstall -F
+    case "`get_zone_state "$ZONENAME"`" in
+        configured) ;;
+        *)
+            logmsg_info "Uninstalling zone '$ZONENAME'..."
+            $ELEVATE_CMD zoneadm -z "$ZONENAME" uninstall -F || DESTROY_RES=$?
+            ;;
+    esac
     logmsg_info "Removing configuration of zone '$ZONENAME'..."
-    $ELEVATE_CMD zonecfg -z "$ZONENAME" delete -F
+    $ELEVATE_CMD zonecfg -z "$ZONENAME" delete -F || DESTROY_RES=$?
 
     local D
     for D in "$ZONEROOT_DS" $DELEGATED_DATASETS ; do
@@ -2567,6 +2573,8 @@ destroy_zone() {
             logmsg_info "You may want to:  $ELEVATE_CMD zfs destroy -r $D"
         fi
     done
+
+    return $DESTROY_RES
 }
 
 # Halt the zone if it was running, roll back to specified or most-recent
