@@ -775,7 +775,7 @@ parse_config_args() {
                 exit $RES_DEBUG
                 ;;
             --config)
-                parse_config_file "$2" || exit $?
+                parse_config_file "$2" || die $? "Could not use a custom config file: '$2'"
                 shift
                 ;;
             --print-config) DO_PRINT_CONFIG=1 ;;
@@ -936,7 +936,7 @@ parse_config_startup() {
     for F in "/etc/zones/zonemgr.conf" "${HOME}/.zonemgr.conf" "${ZONEMGR_CONF-}"; do
         if [ -s "$F" ] ; then
             parse_config_file "$F" \
-                || logmsg_warn "Could not use config file '$F'"
+                || logmsg_warn "Could not use a default config file: '$F'"
         fi
     done
 
