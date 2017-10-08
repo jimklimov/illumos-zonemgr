@@ -1,0 +1,31 @@
+RES=0
+
+DATASET_CONTAINMENT_GIZ="$($ZONEMGR_CMD -d 0 DEVEL_DEBUG eval echo '$DATASET_CONTAINMENT_GIZ' 2>/dev/null)" && \
+    [ -n "$DATASET_CONTAINMENT_GIZ" ] || exit $?
+TESTDS="$DATASET_CONTAINMENT_GIZ/_local/selftest-giz-02d"
+
+echo "=== Create a zone with delegated datasets"
+$ZONEMGR_CMD -z selftest-giz-02d create-giz --delegate-dataset "$TESTDS" || RES=$?
+[ "$RES" = 0 ] || exit $RES
+
+echo "=== Boot the zone"
+$ZONEMGR_CMD -z selftest-giz-02d singleuser || RES=$?
+
+echo "=== Inspect the zone datasets"
+$ZONEMGR_CMD -z selftest-giz-02d --exec-cmd "zfs list" || RES=$?
+
+echo "=== Inspect the zone mounted filesystems"
+$ZONEMGR_CMD -z selftest-giz-02d --exec-cmd "/bin/df -k" || RES=$?
+
+echo "=== Manipulate delegated dataset from zone"
+echo "===== Create /TEST"
+$ZONEMGR_CMD -z selftest-giz-02d --exec-cmd "zfs create -o mountpoint=/TEST $TESTDS/test" || RES=$?
+echo "===== Inspect /TEST"
+$ZONEMGR_CMD -z selftest-giz-02d --exec-cmd "/bin/df -k /TEST" || RES=$?
+echo "===== Destroy /TEST"
+$ZONEMGR_CMD -z selftest-giz-02d --exec-cmd "zfs destroy $TESTDS/test" || RES=$?
+
+echo "=== Stop the zone"
+$ZONEMGR_CMD -z selftest-giz-02d stop || RES=$?
+
+exit $RES

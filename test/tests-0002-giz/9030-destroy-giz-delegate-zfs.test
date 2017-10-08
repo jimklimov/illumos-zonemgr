@@ -1,0 +1,16 @@
+RES=0
+
+DATASET_CONTAINMENT_GIZ="$($ZONEMGR_CMD -d 0 DEVEL_DEBUG eval echo '$DATASET_CONTAINMENT_GIZ' 2>/dev/null)" && \
+    [ -n "$DATASET_CONTAINMENT_GIZ" ] || exit $?
+TESTDS="$DATASET_CONTAINMENT_GIZ/_local/selftest-giz-02d"
+
+echo "=== Is delegated dataset present?"
+zfs list "$TESTDS"
+
+echo "=== Destroy the zone with delegated datasets"
+$ZONEMGR_CMD -z selftest-giz-02d destroy || RES=$?
+
+echo "=== Is delegated dataset present after zone destroyed?"
+zfs list "$TESTDS"
+
+exit $RES
