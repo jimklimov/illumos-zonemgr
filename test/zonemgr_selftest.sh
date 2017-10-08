@@ -19,6 +19,9 @@ EOF
 
 ZONEMGR="`dirname $0`/../bin/zonemgr"
 ZONEMGR_CFG="`dirname $0`/zonemgr_selftest.cfg"
+# Default to a local test-config instead of a git-tracked one
+# (it may source the original test-config, should you want to):
+[ -s "$ZONEMGR_CFG".local ] && ZONEMGR_CFG="$ZONEMGR_CFG".local
 TESTDIR="`dirname $0`/tests"
 FAILFAST=1
 
