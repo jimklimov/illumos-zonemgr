@@ -807,11 +807,11 @@ parse_config_args() {
             -G|--remove-publisher|--del-publisher|--remove-publishers|--del-publishers)
                 DEL_PUBLISHERS="$DEL_PUBLISHERS $2"; shift ;;
             --mount-lofs)
-                ADD_MOUNT_LOFS="$ADD_MOUNT_LOFS $2"; shift ;;
+                ADD_MOUNT_LOFS="$ADD_MOUNT_LOFS `echo "$2" | sed -e 's,//,/,g' -e 's,/\|,\|,g' -e 's,/ , ,g' -e 's,/$,,'`"; shift ;;
             --mount-autonfs)
-                ADD_MOUNT_AUTONFS="$ADD_MOUNT_AUTONFS $2"; shift ;;
+                ADD_MOUNT_AUTONFS="$ADD_MOUNT_AUTONFS `echo "$2" | sed -e 's,//,/,g' -e 's,/\|,\|,g' -e 's,/ , ,g' -e 's,/$,,'`"; shift ;;
             --delegate-dataset)
-                ADD_DELEGATED_DATASET="$ADD_DELEGATED_DATASET $2"; shift ;;
+                ADD_DELEGATED_DATASET="$ADD_DELEGATED_DATASET `echo "$2" | sed -e 's,//,/,g' -e 's,/\|,\|,g' -e 's,/ , ,g' -e 's,/$,,'`"; shift ;;
             --copy-users|--copy-user)
                 COPY_USERS="$COPY_USERS $2"; shift ;;
             --copy-groups|--copy-group)
