@@ -2298,7 +2298,6 @@ ${ZONECFG_SCRIPT}
 =======
 $ZONECFG_SCRIPT
 ======="
-    verify_zone "${ZONENAME}"
 }
 
 install_zone() {
@@ -2310,6 +2309,7 @@ install_zone() {
     # user.
     secure_assigned_datasets "${ZONENAME}" \
         || die "Could not ensure datasets for '$ZONENAME'"
+    verify_zone "${ZONENAME}"
 
     # TBD: Older Solarises - precreate zoneroot dataset?
     # TBD: Use args to template+brand based install to specify publishers
