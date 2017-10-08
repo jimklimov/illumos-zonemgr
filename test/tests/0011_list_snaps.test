@@ -1,7 +1,9 @@
 RES=0
 
+echo "=== Snapshots of datasets associated with zone selftest-giz-01:"
 $ZONEMGR_CMD list-snapshots -z selftest-giz-01 || RES=$?
 
+echo "=== Snapshots of datasets associated with zone selftest-diz-01:"
 $ZONEMGR_CMD list-snapshots -z selftest-diz-01 || RES=$?
 
 exit $RES
