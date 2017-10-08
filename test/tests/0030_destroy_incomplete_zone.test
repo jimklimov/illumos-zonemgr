@@ -1,0 +1,13 @@
+ZONENAME="cfg_destroy_diz-$$"
+DATASET_CONTAINMENT_DIZ="$($ZONEMGR_CMD -d 0 DEVEL_DEBUG eval echo '$DATASET_CONTAINMENT_DIZ' 2>/dev/null)" && \
+    [ -n "$DATASET_CONTAINMENT_DIZ" ] || exit $?
+DATASET_CONTAINMENT_DIZ_MPT="$($ZONEMGR_CMD -d 0 DEVEL_DEBUG zfs_getMPTbyDS "$DATASET_CONTAINMENT_DIZ" 2>/dev/null)" && \
+    [ -n "$DATASET_CONTAINMENT_DIZ_MPT" ] || exit $?
+
+echo "=== Creating zone $ZONENAME config (no installaton)"
+echo "create -b; set zonepath=$DATASET_CONTAINMENT_DIZ_MPT/$ZONENAME; commit" | pfexec zonecfg -z "$ZONENAME" || exit $?
+
+echo "=== Destroying zone with the script"
+$ZONEMGR_CMD destroy -z "$ZONENAME" || exit $?
+
+true
