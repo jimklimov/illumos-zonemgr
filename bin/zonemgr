@@ -822,7 +822,7 @@ parse_config_args() {
                 USE_VNICS="$USE_VNICS $2"; shift ;;
             --add-vnic-over|--use-vnic-over|--add-vnics-over|--use-vnics-over|--auto-vnic|--auto-vnics)
                 AUTO_VNICS="$AUTO_VNICS $2"; shift ;;
-            --exec-cmd) EXEC_CMD="$2" ; shift ;;
+            --exec-cmd) EXEC_CMD="$2"; [ -n "$ACTION" ] || ACTION="exec" ; shift ;;
             --exec-user) EXEC_USER="$2" ; shift ;;
             --exec-discard)
                 case "$2" in
