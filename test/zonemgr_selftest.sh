@@ -23,11 +23,25 @@ TESTDIR="`dirname $0`/tests"
 FAILFAST=1
 
 TESTS=""
+ZONEMGR_DEBUG=1
+DO_PRINT_CONFIG=0
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -h|--help|-help) usage; exit 0;;
         --config) ZONEMGR_CFG="$2"; shift ;;
+        --print-config) DO_PRINT_CONFIG=1 ;;
+        --no-print-config) DO_PRINT_CONFIG=0 ;;
+        -q) ZONEMGR_DEBUG=0;;
+        -d|--debug)
+            if [ "$2" -ge -1 ] 2>/dev/null ; then
+                ZONEMGR_DEBUG="$2"
+                shift
+            else
+                ZONEMGR_DEBUG="$(expr $ZONEMGR_DEBUG + 1)" || \
+                    ZONEMGR_DEBUG="99"
+            fi
+            ;;
         --failfast|--fail-fast) FAILFAST=1 ;;
         --no-failfast|--no-fail-fast) FAILFAST=0 ;;
         -*)  echo "ERROR: Unrecognized argument: $1" >&2 ; exit 1;;
@@ -68,9 +82,12 @@ if [ -n "$ZONEMGR_CFG" ] && [ ! -f "$ZONEMGR_CFG" ]; then
     exit 1
 fi
 
-ZONEMGR_CMD="$ZONEMGR -q"
+ZONEMGR_CMD="$ZONEMGR -d $ZONEMGR_DEBUG"
+if [ "$DO_PRINT_CONFIG" != 0 ]; then
+    ZONEMGR_CMD="$ZONEMGR_CMD --print-config"
+fi
 if [ -n "$ZONEMGR_CFG" ] ; then
-    ZONEMGR_CMD="$ZONEMGR -q --config $ZONEMGR_CFG"
+    ZONEMGR_CMD="$ZONEMGR_CMD --config $ZONEMGR_CFG"
 fi
 
 echo "`date -u`: Starting $0" >&2
@@ -82,7 +99,8 @@ COUNT_PASSED=0
 for TEST in $TESTS ; do
     TESTBASE="`basename $TEST .test`"
     echo "============ START `date -u`: $TESTBASE" >&2
-    ( . $TEST ) ; RES=$?
+    ( [ "$ZONEMGR_DEBUG" -gt 1 ] && set -x
+      . $TEST ) ; RES=$?
     if [ "$RES" = 0 ]; then
         VERDICT="PASSED"
         PASSED="$PASSED $TESTBASE"
