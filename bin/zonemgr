@@ -1121,15 +1121,24 @@ create_dataset_containment_DIZ() {
 
 # Mounted filesystem path to get the (target) zone's current rootfs
 # Value for the zone manipulated in this run is cached after first call
+# The array caches known values for the zones, to avoid the costy lookups
+declare -A arrALTROOT
+arrALTROOT["global"]="/"
+# The string caches the last-used value since many runs only need it once
 ALTROOT=""
 getALTROOT() {
-    [ -z "$ALTROOT" ] || { echo "$ALTROOT"; return 0; }
-
     local ZONENAME="${1-}"
     if [ -z "$ZONENAME" ] ; then
         ZONENAME="${TARGET_ZONE}"
     fi
-    ALTROOT="`get_zone_root "$ZONENAME"`/root" && [ -n "$ALTROOT" ] || return
+
+    if [ -z "${arrALTROOT[$ZONENAME]}" ] ; then
+        arrALTROOT[$ZONENAME]="`get_zone_root "$ZONENAME"`/root" \
+            || arrALTROOT[$ZONENAME]=""
+    fi
+
+    ALTROOT="${arrALTROOT[$ZONENAME]}"
+    [ -n "$ALTROOT" ] || return
     echo "$ALTROOT"
 }
 
@@ -1708,14 +1717,15 @@ clone_group() {
     # TODO: By construction, this routine now requires "root" to run it.
     # If this proves a bottleneck, find a way to elevate privs to do the job.
     # Perhaps mount/ready the zone, "$ELEVATE_CMD zlogin -S" to fix it up...
-    local G="$1"
+    local ZONENAME="$1"
+    local G="$2"
     local _G
 
     _G="$(egrep "^$G:" "/etc/group")" || \
         die "Can not replicate unknown group '$G' from the host!"
 
     if [ "$MY_UID" = 0 ] ; then
-        getALTROOT && \
+        getALTROOT "$ZONENAME" && \
         [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
 
         logmsg_info "Defining group account '$_G' from host to zone as GZ root"
@@ -1729,7 +1739,7 @@ clone_group() {
         fi
     else
         logmsg_info "Defining group account '$_G' from host to zone via zlogin"
-        $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
+        $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 if egrep "^$G:" "/etc/group" >/dev/null ; then
     egrep -v "^$G:" < "/etc/group" > "/etc/group.tmp" && \
     echo "$_G" >> "/etc/group.tmp" && \
@@ -1745,7 +1755,8 @@ EOF
 clone_user() {
     # TODO: By construction, this routine now requires "root" to run it.
     # If this proves a bottleneck, find a way to elevate privs to do the job.
-    local U="$1"
+    local ZONENAME="$1"
+    local U="$2"
     local _P=""
     local _S=""
 
@@ -1767,7 +1778,7 @@ clone_user() {
     fi
 
     if [ "$MY_UID" = 0 ] ; then
-        getALTROOT && \
+        getALTROOT "$ZONENAME" && \
         [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
 
         logmsg_info "Defining user account '$_P' from host to zone as GZ root"
@@ -1790,7 +1801,7 @@ clone_user() {
         fi
     else
         logmsg_info "Defining user account '$_P' from host to zone via zlogin"
-        $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
+        $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 if egrep "^$U:" "/etc/passwd" >/dev/null ; then
     egrep -v "^$U:" < "/etc/passwd" > "/etc/passwd.tmp" && \
     echo "$_P" >> "/etc/passwd.tmp" && \
@@ -1813,28 +1824,31 @@ EOF
 }
 
 clone_groups() {
+    local ZONENAME="$1"
     local RES=0
     [ -z "${COPY_GROUPS-}" ] || \
     for G in $COPY_GROUPS ; do
-        clone_group "$G" || RES=$?
+        clone_group "$ZONENAME" "$G" || RES=$?
     done
     return $RES
 }
 
 clone_users() {
+    local ZONENAME="$1"
     local RES=0
     [ -z "${COPY_USERS-}" ] || \
     for U in $COPY_USERS ; do
-        clone_user "$U" || RES=$?
+        clone_user "$ZONENAME" "$U" || RES=$?
     done
     return $RES
 }
 
 elevate_user() {
-    local U="$1"
+    local ZONENAME="$1"
+    local U="$2"
 
     if [ "$MY_UID" = 0 ] ; then
-        getALTROOT && \
+        getALTROOT "$ZONENAME" && \
         [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
 
         logmsg_info "Elevating user account '$U' in the zone as GZ root"
@@ -1845,7 +1859,7 @@ elevate_user() {
         printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\:no;profiles=All;clearance=admin_high;type=normal\n' "$U" > "${ALTROOT}/etc/user_attr.d/90zonemgr.$U"
     else
         logmsg_info "Elevating user account '$U' in the zone via zlogin"
-        $ELEVATE_CMD zlogin -S "${TARGET_ZONE}" << EOF
+        $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 mkdir -p "/etc/sudoers.d/" "/etc/user_attr.d/"
 printf '%s\tALL=(ALL) NOPASSWD: ALL\n' "$U" > "/etc/sudoers.d/90zonemgr.$U"
 chmod 600 "/etc/sudoers.d/90zonemgr.$U"
@@ -1856,10 +1870,11 @@ EOF
 }
 
 elevate_users() {
+    local ZONENAME="$1"
     local RES=0
     [ -z "${ELEVATE_USERS-}" ] || \
     for U in $ELEVATE_USERS ; do
-        elevate_user "$U" || RES=$?
+        elevate_user "$ZONENAME" "$U" || RES=$?
     done
     return $RES
 }
@@ -1867,6 +1882,7 @@ elevate_users() {
 # TBD: Configure LDAP (hosts, users, groups, netgroups; client; registration;
 # pam; an openldap.conf for other tools) by editing and/or adding files in NGZ
 setup_ldap() {
+    local ZONENAME="$1"
     TBD
 }
 
@@ -2395,11 +2411,11 @@ setup_zone_postinstall() {
     singleuser_zone "${ZONENAME}"
 
     # TODO: Setup timezone (host OS? UTC?) by default or specified somehow
-    setup_zone_name
-    clone_groups
-    clone_users
-    elevate_users
-    # setup_ldap
+    setup_zone_name "$ZONENAME" # "$ZONEHOSTNAME"
+    clone_groups "$ZONENAME"
+    clone_users "$ZONENAME"
+    elevate_users "$ZONENAME"
+    # setup_ldap "$ZONENAME"
 
     # If VNICs exist:
     # * Pre-set VNICs for legacy DHCP (/etc/dhcp.VNICNAME).
