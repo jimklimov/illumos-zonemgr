@@ -1542,14 +1542,15 @@ zonecfg_snippet_assign_auto_vnics() {
     # (/etc/hostname.$VNIC, its NWAM, networking daemon setups, etc.) or
     # in external (GZ-based) software setups. So handling the renaming or
     # temporary VNICs (with changing names) can have arbitrary complexity.
-    VNICS="$(list_auto_vnics_zonecfg "${TARGET_ZONE}")" 2>/dev/null \
-    && [ -n "$VNICS" ] && echo "remove attr name=zonemgr.autovnic" \
-    || VNICS=""
+    VNICS="$(list_auto_vnics_zonecfg "${ZONENAME}")" 2>/dev/null \
+        && [ -n "$VNICS" ] && echo "remove attr name=zonemgr.autovnic" \
+        || VNICS=""
 
     for LVM in $LVM_LIST ; do
         NEWVNIC="$(create_vnic "$LVM")" && [ -n "$NEWVNIC" ] \
             || die "Failed to create VNIC by spec: $LVM"
-        [ -z "$VNICS" ] && VNICS="$NEWVNIC|$LVM" || VNICS="$VNICS $NEWVNIC|$LVM"
+        [ -z "$VNICS" ] && VNICS="$NEWVNIC|$LVM" \
+            || VNICS="$VNICS $NEWVNIC|$LVM"
         zonecfg_snippet_assign_nic "$ZONENAME" "$NEWVNIC"
     done
 
