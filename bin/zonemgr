@@ -702,6 +702,10 @@ TEMPLATE_GIZ="SUNWipkg"
 BRAND_GIZ="ipkg"
 # Which golden-image zone the target one (GIZ or DIZ) is cloned from
 ORIGIN_GIZ=""
+# Generally, code supports cloning of anything to anything - this value is
+# not supposed to be set directly, and is set to $ORIGIN_GIZ (if available)
+# or generated during clone_zone()
+ORIGIN_ZONE=""
 # Which zone will we manage with this command?
 TARGET_ZONE=""
 # Which snapshot name will we take of target zone, or clone off origin zone,
@@ -2282,8 +2286,12 @@ clone_zone() {
     # If ORIGIN_ZONE is not set or is missing, install it first and
     # then clone it here - so we can later quickly spawn same setups
     if [ -z "$ORIGIN_ZONE" ]; then
-        ORIGIN_ZONE="$(generate_zonename)"
-        logmsg_warn "An ORIGIN_ZONE name was not provided, generated '$ORIGIN_ZONE'"
+        if [ -n "$ORIGIN_GIZ" ]; then
+            ORIGIN_ZONE="$ORIGIN_GIZ"
+        else
+            ORIGIN_ZONE="$(generate_zonename)"
+            logmsg_warn "An ORIGIN_ZONE name was not provided, generated '$ORIGIN_ZONE'"
+        fi
     fi
 
     if ! check_is_managed_zone "$ORIGIN_ZONE" ; then
