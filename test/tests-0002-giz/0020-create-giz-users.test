@@ -28,11 +28,19 @@ esac
 echo "=== Inspect the user '$MYSELF' in the zone"
 $ZONEMGR_CMD -z selftest-giz-02u --exec-cmd 'for F in /etc/sudoers.d/* /etc/user_attr /etc/user_attr.d/* /etc/passwd ; do echo "===== $F :" ; cat "$F"; done; echo ""'
 $ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "id $MYSELF" || RES=$?
-$ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "getent passwd | grep $MYSELF" || RES=$?
+$ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "getent passwd | grep -w $MYSELF" || RES=$?
 $ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "ls -la $MYHOME" || RES=$?
 $ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "ls -la ~$MYSELF" || RES=$?
 
 echo "=== Shutdown the zone by user '$MYSELF' (with pfexec)"
-$ZONEMGR_CMD -z selftest-giz-02u exec --exec-user "$MYSELF" --exec-cmd "id ; pfexec /usr/sbin/shutdown -y -g 5 -i 2" || RES=$?
+$ZONEMGR_CMD -z selftest-giz-02u exec --exec-user "$MYSELF" --exec-cmd "id ; pfexec /usr/sbin/shutdown -y -g 5 -i 0 && echo GOING DOWN" || RES=$?
+echo "...sleep a bit"
+sleep 10
+
+ZONE_STATE="$($ZONEMGR_CMD status -z selftest-giz-02u)"
+if [ $? != 0 ] || [ "$ZONE_STATE" != installed ]; then
+    echo "=== Shutdown the zone from host OS: it is still in state '$ZONE_STATE'"
+    $ZONEMGR_CMD -z selftest-giz-02u shutdown || RES=$?
+fi
 
 exit $RES
