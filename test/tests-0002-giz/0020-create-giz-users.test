@@ -35,6 +35,7 @@ $ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "ls -la ~$MYSELF" || RES=$?
 echo "=== Shutdown the zone by user '$MYSELF' (with pfexec)"
 ( pfexec zlogin -C selftest-giz-02u ) &
 ZCONS_PID=$!
+sleep 3 # let zconsole connect
 $ZONEMGR_CMD -z selftest-giz-02u exec --exec-user "$MYSELF" --exec-cmd "id ; pfexec /usr/sbin/shutdown -y -g 5 -i 0 && echo GOING DOWN" || RES=$?
 echo "...sleep a bit"
 sleep 10
