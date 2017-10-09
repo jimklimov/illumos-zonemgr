@@ -1,0 +1,38 @@
+RES=0
+
+MYSELF="$(getent passwd | awk -F: '( $3 == '"`id -u`"' ) {print $1}' | head -1)"
+[ -n "$MYSELF" ] || MYSELF="$USER"
+[ -n "$MYSELF" ] || MYSELF="$USERNAME"
+[ -z "$MYSELF" ] && echo "Can not detect the name of current user account" >&2 && exit 1
+# TODO: Is running as root bad here?
+
+case "$HOME" in
+    /home/*) MYHOME="/export/$HOME" ;;
+    *) MYHOME="$HOME" ;;
+esac
+
+echo "=== Create zone with cloned elevated user '$MYSELF' and lofs-mount its homedir"
+$ZONEMGR_CMD -z selftest-giz-02u create-giz --copy-users "$MYSELF" --elevate-users "$MYSELF" --mount-lofs "$MYHOME" || RES=$?
+[ "$RES" = 0 ] || exit $RES
+
+echo "=== Boot the zone"
+$ZONEMGR_CMD -z selftest-giz-02u start || RES=$?
+
+case "$HOME" in
+    /home/*)
+        echo "=== Set homedir of the user '$MYSELF' in the zone to not be under /home/ automounter for this test"
+        $ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "usermod -d $MYHOME $MYSELF" || RES=$?
+        ;;
+esac
+
+echo "=== Inspect the user '$MYSELF' in the zone"
+$ZONEMGR_CMD -z selftest-giz-02u --exec-cmd 'for F in /etc/sudoers.d/* /etc/user_attr /etc/user_attr.d/* /etc/passwd ; do echo "===== $F :" ; cat "$F"; done; echo ""'
+$ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "id $MYSELF" || RES=$?
+$ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "getent passwd | grep $MYSELF" || RES=$?
+$ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "ls -la $MYHOME" || RES=$?
+$ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "ls -la ~$MYSELF" || RES=$?
+
+echo "=== Shutdown the zone by user '$MYSELF' (with pfexec)"
+$ZONEMGR_CMD -z selftest-giz-02u exec --exec-user "$MYSELF" --exec-cmd "id ; pfexec /usr/sbin/shutdown -y -g 5 -i 2" || RES=$?
+
+exit $RES

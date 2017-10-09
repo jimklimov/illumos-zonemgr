@@ -1,0 +1,6 @@
+RES=0
+
+echo "=== Destroy the zone with replicated users"
+$ZONEMGR_CMD -z selftest-giz-02u destroy || RES=$?
+
+exit $RES
