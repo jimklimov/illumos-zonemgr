@@ -45,6 +45,8 @@ ZONE_STATE="$($ZONEMGR_CMD status -z selftest-giz-02u)"
 if [ $? != 0 ] || [ "$ZONE_STATE" != installed ]; then
     echo "=== Shutdown the zone from host OS: it is still in state '$ZONE_STATE'"
     $ZONEMGR_CMD -z selftest-giz-02u shutdown || RES=$?
+else
+    echo "=== OK: zone got into state '$ZONE_STATE'"
 fi
 
 exit $RES
