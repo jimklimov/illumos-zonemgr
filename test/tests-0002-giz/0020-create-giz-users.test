@@ -33,9 +33,12 @@ $ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "ls -la $MYHOME" || RES=$?
 $ZONEMGR_CMD -z selftest-giz-02u exec --exec-cmd "ls -la ~$MYSELF" || RES=$?
 
 echo "=== Shutdown the zone by user '$MYSELF' (with pfexec)"
+( pfexec zlogin -C selftest-giz-02u ) &
+ZCONS_PID=$!
 $ZONEMGR_CMD -z selftest-giz-02u exec --exec-user "$MYSELF" --exec-cmd "id ; pfexec /usr/sbin/shutdown -y -g 5 -i 0 && echo GOING DOWN" || RES=$?
 echo "...sleep a bit"
 sleep 10
+[ -n "$ZCONS_PID" ] && [ -d "/proc/$ZCONS_PID" ] && kill -15 $ZCONS_PID
 
 ZONE_STATE="$($ZONEMGR_CMD status -z selftest-giz-02u)"
 if [ $? != 0 ] || [ "$ZONE_STATE" != installed ]; then
