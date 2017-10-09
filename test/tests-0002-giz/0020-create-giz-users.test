@@ -7,7 +7,7 @@ MYSELF="$(getent passwd | awk -F: '( $3 == '"`id -u`"' ) {print $1}' | head -1)"
 # TODO: Is running as root bad here?
 
 case "$HOME" in
-    /home/*) MYHOME="/export/$HOME" ;;
+    /home/*) MYHOME="/export$HOME" ;;
     *) MYHOME="$HOME" ;;
 esac
 
