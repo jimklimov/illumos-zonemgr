@@ -1,0 +1,18 @@
+RES=0
+
+echo "=== Try to destroy the zone with delegated VNIC over VNIC (should not exist)"
+$ZONEMGR_CMD -z selftest-giz-02nn destroy && RES=1
+
+echo "=== Destroy the zone with delegated VNIC and VNIC over etherstub"
+$ZONEMGR_CMD -z selftest-giz-02n destroy || RES=$?
+
+echo "=== Clean up test network, if any"
+pfexec dladm delete-vnic zmgrselftest02vnic1 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic zmgrselftest02vnic0 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte0 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte1 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte2 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte3 2>/dev/null >/dev/null || true
+pfexec dladm delete-etherstub zmgrselftest02stub0 2>/dev/null >/dev/null || true
+
+exit $RES

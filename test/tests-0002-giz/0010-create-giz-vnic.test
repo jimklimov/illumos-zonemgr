@@ -1,0 +1,67 @@
+RES=0
+
+echo "=== Clean up test network, if any"
+pfexec dladm delete-vnic zmgrselftest02vnic1 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic zmgrselftest02vnic0 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte0 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte1 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte2 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte3 2>/dev/null >/dev/null || true
+pfexec dladm delete-etherstub zmgrselftest02stub0 2>/dev/null >/dev/null || true
+
+echo "=== Create test network"
+pfexec dladm create-etherstub -t zmgrselftest02stub0 && \
+pfexec dladm create-vnic -t -l zmgrselftest02stub0 zmgrselftest02vnic0 && \
+pfexec dladm create-vnic -t -l zmgrselftest02stub0 zmgrselftest02vnic1 \
+|| exit $?
+
+echo "=== Inspect networking in the host OS before zone creation"
+dladm show-etherstub zmgrselftest02stub0
+dladm show-link | grep zmgrselftest02stub0
+dladm show-vnic | grep zmgrselftest02
+
+echo "=== Check that VNIC over VNIC does not work"
+RES=0
+$ZONEMGR_CMD -z selftest-giz-02nn create-giz --add-vnic-over "zmgrselftest02vnic0||00:01:02:03:04:05" || RES=$?
+[ "$RES" = 0 ] && echo "This should have failed!" >&2 && exit 1
+RES=0
+
+echo "=== Create zone with delegated VNIC and an auto-VNIC over etherstub"
+$ZONEMGR_CMD -z selftest-giz-02n create-giz --add-vnic-over "zmgrselftest02stub0" --add-vnic zmgrselftest02vnic1 || RES=$?
+[ "$RES" = 0 ] || exit $RES
+
+echo "=== Boot the zone"
+$ZONEMGR_CMD -z selftest-giz-02n start || RES=$?
+
+echo "=== Inspect networking in the host OS after zone boot"
+dladm show-etherstub zmgrselftest02stub0
+dladm show-link | grep zmgrselftest02
+dladm show-vnic | grep zmgrselftest02
+
+echo "=== Inspect networking in the zone"
+$ZONEMGR_CMD -z selftest-giz-02n --exec-cmd 'for F in /etc/host* /etc/nodename /etc/dhcp.* ; do echo "===== $F :" ; cat "$F"; done; echo ""'
+$ZONEMGR_CMD -z selftest-giz-02n --exec-cmd "ifconfig -a" || RES=$?
+$ZONEMGR_CMD -z selftest-giz-02n --exec-cmd "dladm show-link" || RES=$?
+$ZONEMGR_CMD -z selftest-giz-02n --exec-cmd "dladm show-vnic" || RES=$?
+
+echo "=== Halt the zone"
+$ZONEMGR_CMD -z selftest-giz-02n halt || RES=$?
+
+echo "=== Inspect networking in the host OS after zone shutdown"
+dladm show-etherstub zmgrselftest02stub0
+dladm show-link | grep zmgrselftest02stub0
+
+echo "=== Tear down the test net"
+pfexec dladm delete-vnic zmgrselftest02vnic1
+pfexec dladm delete-vnic zmgrselftest02vnic0
+pfexec dladm delete-vnic autogizselfte0 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte1 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte2 2>/dev/null >/dev/null || true
+pfexec dladm delete-vnic autogizselfte3 2>/dev/null >/dev/null || true
+pfexec dladm delete-etherstub zmgrselftest02stub0
+
+echo "=== Inspect networking in the host OS after cleanup (should be no output here)"
+dladm show-link | grep zmgrselftest02
+dladm show-vnic | grep zmgrselftest02
+
+exit $RES
