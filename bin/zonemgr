@@ -1961,20 +1961,42 @@ setup_zone_name() {
     [ -n "$ZONENAME" ] || ZONENAME="${TARGET_ZONE}"
     [ -n "$ZONEHOSTNAME" ] || ZONEHOSTNAME="${ZONENAME}"
 
-    # Note: Escaping escape sequences is hard :(
-    $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
+    if [ "$MY_UID" = 0 ] ; then
+        getALTROOT "$ZONENAME" && \
+        [ -d "$ALTROOT/etc" ] || die "Not a directory: '$ALTROOT/etc'"
+
+        logmsg_info "Updating /etc/hosts in the zone as GZ root"
+
+        echo "${ZONEHOSTNAME}" > "${ALTROOT}/etc/nodename"
+        if [ -n "${ORIGIN_GIZ}" ] ; then
+            sed -e 's,^\(127\.0\.0\.1.*[\ \t]\)'"${ORIGIN_GIZ}"'\([\ \t].*|\)$,\1\2,' \
+                -i ${ALTROOT}/etc/hosts
+        fi
+            sed -e 's,^\(127\.0\.0\.1.*[\ \t].*\)$,\1\t'"${ZONEHOSTNAME}"',' \
+                -i ${ALTROOT}/etc/hosts
+        if [ x"${ZONEHOSTNAME}" != x"${ZONENAME}" ]; then
+            sed -e 's,^\(127\.0\.0\.1.*[\ \t].*\)$,\1\t'"${ZONENAME}"',' \
+                -i ${ALTROOT}/etc/hosts
+        fi
+    else
+        # Note: Escaping escape sequences is hard :(
+        local ZCMD="$(cat << EOF
 echo "${ZONEHOSTNAME}" > "/etc/nodename"
 if [ -n "${ORIGIN_GIZ}" ] ; then
-    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \\t]\\)'"${ORIGIN_GIZ}"'\\([\\ \\t].*|\\)$,\\1\\2,' \
+    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \t]\\)'"${ORIGIN_GIZ}"'\\([\\ \t].*|\\)$,\\1\\2,' \
         -i /etc/hosts
 fi
-    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \\t].*\\)$,\\1'`printf '\\t'`"${ZONEHOSTNAME}"',' \
+    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \t].*\\)$,\\1\t'"${ZONEHOSTNAME}"',' \
         -i /etc/hosts
 if [ x"${ZONEHOSTNAME}" != x"${ZONENAME}" ]; then
-    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \\t].*\\)$,\\1'`printf '\\t'`"${ZONENAME}"',' \
+    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \t].*\\)$,\\1\t'"${ZONENAME}"',' \
         -i /etc/hosts
 fi
 EOF
+)"
+        logmsg_debug "$(printf '=== Amending /etc/hosts in $ZONENAME with:\n%s\n===\n' "$ZCMD")"
+        echo "$ZCMD" | $ELEVATE_CMD zlogin -S "${ZONENAME}"
+    fi
 }
 
 ##########################################################################
