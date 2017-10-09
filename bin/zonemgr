@@ -2439,7 +2439,11 @@ setup_zone_postinstall() {
     logmsg_info "Post-Install processing for zone '${ZONENAME}'..."
 
     logmsg_info "Booting '${ZONENAME}' to configure services and zone env"
-    singleuser_zone "${ZONENAME}"
+    if [ "$MY_UID" = 0 ] ; then
+        mount_zone "${ZONENAME}"
+    else
+        singleuser_zone "${ZONENAME}"
+    fi
 
     # TODO: Setup timezone (host OS? UTC?) by default or specified somehow
     setup_zone_name "$ZONENAME" # "$ZONEHOSTNAME"
@@ -2462,7 +2466,11 @@ setup_zone_postinstall() {
     # so end-users can copy more files, etc. Running still in GZ context,
     # thus chrooting/zlogin'ing is up to that scripter.
 
-    halt_zone "${ZONENAME}"
+    if [ "$MY_UID" = 0 ] ; then
+        unmount_zone "${ZONENAME}"
+    else
+        halt_zone "${ZONENAME}"
+    fi
 }
 
 # pkg-update contents of a (golden-image?) zone, snapshot after success
