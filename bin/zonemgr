@@ -1889,6 +1889,7 @@ setup_ldap() {
 }
 
 # TBD: non-legacy setup via ipadm?
+# TBD: non-dhcp setup via further LVM(|args)?
 setup_vnic_dhcp() {
     # Pre-set NICs for legacy DHCP (/etc/dhcp.VNICNAME), if not already set up.
     # Assumes zone root is mounted, and "ready" or "booted".
@@ -1896,6 +1897,7 @@ setup_vnic_dhcp() {
     local NICNAME="$2"
 
     # TODO: forcing-flag to not skip existing setups?
+    # TODO: if MY_UID = 0 ...
     $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 if [ -s "/etc/hostname.${NICNAME}" ] ; then
     echo "SKIP: NIC '${NICNAME}' is already set up in zone '$ZONENAME'"
@@ -1918,6 +1920,7 @@ setup_zone_vnics_dhcp() {
 
     # Clean up existing configs of NICs that are not delegated,
     # in case of untidy origin zone being cloned...
+    # TODO: if MY_UID = 0 ...
     EXISTING_NICS="$($ELEVATE_CMD zlogin -S "${ZONENAME}" "cd /etc/dhcp/ && ls -1d *.dhc 2>/dev/null | sed 's,.dhc$,,' ; cd /etc/ && ls -1d hostname.* dhcp.* 2>/dev/null | sed 's,^(hostname|dhcp)\.,,'" | sort | uniq | egrep -v '^lo')"
 
     if [ -n "$EXISTING_NICS" ] ; then
@@ -1930,6 +1933,7 @@ setup_zone_vnics_dhcp() {
             fi
             # EXNICNAME not among NICNAMEs, if any are defined - remove cfg
             logmsg_info "Removing local zone OS inherited and obsoleted config for NIC '${EXNICNAME}' in zone '${ZONENAME}'"
+            # TODO: if MY_UID = 0 ...
             $ELEVATE_CMD zlogin -S "${ZONENAME}" "/bin/rm -f /etc/dhcp/${EXNICNAME}.dhc /etc/dhcp.${EXNICNAME} /etc/hostname.${EXNICNAME}" && CHANGES_MADE="$(expr $CHANGES_MADE + 1)"
         done
     fi
@@ -1946,6 +1950,7 @@ setup_zone_vnics_dhcp() {
     # Note: when the zone is in single-user mode, we can not manipulate the
     # services normally because of "svcadm: Couldn't bind to configuration
     # repository: repository server unavailable."
+    # TODO: if MY_UID = 0 ... or if zone not running => skip
     if [ "$CHANGES_MADE" -gt 0 ]; then
         logmsg_info "Enabling legacy networking service in zone '${ZONENAME}'"
         $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
@@ -2460,12 +2465,14 @@ setup_zone_postinstall() {
 
     logmsg_info "Post-Install processing for zone '${ZONENAME}'..."
 
-    logmsg_info "Booting '${ZONENAME}' to configure services and zone env"
-    if [ "$MY_UID" = 0 ] ; then
-        mount_zone "${ZONENAME}"
-    else
+# TODO: Patch up routines called above to support not-running zoneroot
+#    if [ "$MY_UID" = 0 ] ; then
+#        logmsg_info "Mounting '${ZONENAME}' to configure services and zone env"
+#        mount_zone "${ZONENAME}"
+#    else
+        logmsg_info "Booting '${ZONENAME}' to configure services and zone env"
         singleuser_zone "${ZONENAME}"
-    fi
+#    fi
 
     # TODO: Setup timezone (host OS? UTC?) by default or specified somehow
     setup_zone_name "$ZONENAME" # "$ZONEHOSTNAME"
@@ -2488,11 +2495,12 @@ setup_zone_postinstall() {
     # so end-users can copy more files, etc. Running still in GZ context,
     # thus chrooting/zlogin'ing is up to that scripter.
 
-    if [ "$MY_UID" = 0 ] ; then
-        unmount_zone "${ZONENAME}"
-    else
-        halt_zone "${ZONENAME}"
-    fi
+# TODO: Patch up routines called above to support not-running zoneroot
+#    if [ "$MY_UID" = 0 ] ; then
+#        unmount_zone "${ZONENAME}"
+#    else
+        stop_zone "${ZONENAME}"
+#    fi
 }
 
 # pkg-update contents of a (golden-image?) zone, snapshot after success
