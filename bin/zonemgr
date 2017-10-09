@@ -1856,15 +1856,17 @@ elevate_user() {
         printf '%s\tALL=(ALL) NOPASSWD: ALL\n' "$U" > "${ALTROOT}/etc/sudoers.d/90zonemgr.$U"
         chmod 600 "${ALTROOT}/etc/sudoers.d/90zonemgr.$U"
         chown 0:0 "${ALTROOT}/etc/sudoers.d/90zonemgr.$U"
-        printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\:no;profiles=All;clearance=admin_high;type=normal\n' "$U" > "${ALTROOT}/etc/user_attr.d/90zonemgr.$U"
+        printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\:no;profiles=Primary Administrator,All;clearance=admin_high;type=normal\n' "$U" \
+            >> "${ALTROOT}/etc/user_attr"
+#            > "${ALTROOT}/etc/user_attr.d/90zonemgr.$U"
     else
         logmsg_info "Elevating user account '$U' in the zone via zlogin"
         $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 mkdir -p "/etc/sudoers.d/" "/etc/user_attr.d/"
-printf '%s\tALL=(ALL) NOPASSWD: ALL\n' "$U" > "/etc/sudoers.d/90zonemgr.$U"
+printf '%s\\tALL=(ALL) NOPASSWD: ALL\n' "$U" > "/etc/sudoers.d/90zonemgr.$U"
 chmod 600 "/etc/sudoers.d/90zonemgr.$U"
 chown 0:0 "/etc/sudoers.d/90zonemgr.$U"
-printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\:no;profiles=All;clearance=admin_high;type=normal\n' "$U" > "/etc/user_attr.d/90zonemgr.$U"
+printf '%s::::roles=root;min_label=admin_low;lock_after_retries=no;auths=solaris.*,solaris.grant;audit_flags=lo\\\\:no;profiles=Primary Administrator,All;clearance=admin_high;type=normal\n' "$U" >> "/etc/user_attr"
 EOF
     fi
 }
