@@ -1961,16 +1961,17 @@ setup_zone_name() {
     [ -n "$ZONENAME" ] || ZONENAME="${TARGET_ZONE}"
     [ -n "$ZONEHOSTNAME" ] || ZONEHOSTNAME="${ZONENAME}"
 
+    # Note: Escaping escape sequences is hard :(
     $ELEVATE_CMD zlogin -S "${ZONENAME}" << EOF
 echo "${ZONEHOSTNAME}" > "/etc/nodename"
 if [ -n "${ORIGIN_GIZ}" ] ; then
-    sed -e 's,^\(127\.0\.0\.1.*[\ \t]\)'"${ORIGIN_GIZ}"'\([\ \t].*|\)$,\1\2,' \
+    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \\t]\\)'"${ORIGIN_GIZ}"'\\([\\ \\t].*|\\)$,\\1\\2,' \
         -i /etc/hosts
 fi
-    sed -e 's,^\(127\.0\.0\.1.*[\ \t].*\)$,\1\t'"${ZONEHOSTNAME}"',' \
+    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \\t].*\\)$,\\1'`printf '\\t'`"${ZONEHOSTNAME}"',' \
         -i /etc/hosts
 if [ x"${ZONEHOSTNAME}" != x"${ZONENAME}" ]; then
-    sed -e 's,^\(127\.0\.0\.1.*[\ \t].*\)$,\1\t'"${ZONENAME}"',' \
+    sed -e 's,^\\(127\\.0\\.0\\.1.*[\\ \\t].*\\)$,\\1'`printf '\\t'`"${ZONENAME}"',' \
         -i /etc/hosts
 fi
 EOF
