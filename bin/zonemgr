@@ -697,9 +697,21 @@ DATASET_CONTAINMENT_GIZ_COMPRESSION="gzip-9"
 DATASET_CONTAINMENT_DIZ_COMPRESSION="zle"
 DATASET_CONTAINMENT_DIZ_DEDUP=off
 
-# Which zone template a GIZ from scratch starts with
-TEMPLATE_GIZ="SUNWipkg"
-BRAND_GIZ="ipkg"
+# Which zone template (or otherwise branc) a GIZ from scratch starts with?
+# Note that OpenIndiana/hipster default "ipkg" zones are linked
+# (so NGZ has same package versions as GZ), and a "nlipkg" can
+# be used for independent local zones. OmniOS on the opposite
+# has non-linked zones as "ipkg" and can use "lipkg" for linked.
+# It is suggested to test with non-linked zones, to reduce the
+# maintenance overhead when updating the host OS. It may also
+# be useful in production, so work environments do not suddenly
+# change as you update your hosting system. Then again, YMMV.
+# System default ("native") since OpenSolaris is "ipkg", whichever
+# way the currently used distribution defines it.
+BRAND_GIZ="ipkg"   ; TEMPLATE_GIZ="SUNWipkg"
+#BRAND_GIZ="nlipkg" ; TEMPLATE_GIZ="OInlipkg"
+#BRAND_GIZ="lipkg"  ; TEMPLATE_GIZ="OMNIlipkg"
+
 # Which golden-image zone the target one (GIZ or DIZ) is cloned from
 ORIGIN_GIZ=""
 # Which zone will we manage with this command?
